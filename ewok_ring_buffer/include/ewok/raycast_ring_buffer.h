@@ -76,7 +76,6 @@ class RaycastRingBuffer {
 
     flag_buffer_.setEmptyElement(updated_flag);
     clearUpdatedMinMax();
-
   }
 
   inline bool isOccupied(const Vector3i & idx) {
@@ -93,6 +92,18 @@ class RaycastRingBuffer {
 
   inline bool clearUpdated(const Vector3i & idx) {
     return flag_buffer_.at(idx) &= ~updated_flag;
+  }
+
+  inline bool isPointNear(const Vector3 & point, const _Scalar & rad)
+  {
+      return occupancy_buffer_.isPointNear(point, rad, [](const _Datatype & d) { return isOccupied(d);});
+  }
+
+  inline bool insideVolume(const Vector3 &point)
+  {
+      Vector3i idx;
+      occupancy_buffer_.getIdx(point, idx);
+      return occupancy_buffer_.insideVolume(idx);
   }
 
   void getUpdatedMinMax(Vector3i & updated_min, Vector3i & updated_max) {
@@ -263,6 +274,32 @@ class RaycastRingBuffer {
   void getMarkerUpdated(visualization_msgs::Marker & m)  {
     flag_buffer_.getMarkerHelper(m, "ring_buffer_occupied", 0, Vector4(1, 1, 0, 0.8),
                                       [](const _Flag & f) { return (f & updated_flag);});
+  }
+
+  void getPoint(const Vector3i &idx, Vector3 &point)
+  {
+      occupancy_buffer_.getPoint(idx, point);
+  }
+
+  void getIdx(const Vector3 &point, Vector3i &idx)
+  {
+      return occupancy_buffer_.getIdx(point, idx);
+  }
+
+  void getVolumeMinMax(Vector3 &min_point, Vector3 &max_point)
+  {
+      Vector3i offset;
+      occupancy_buffer_.getOffset(offset);
+
+      Vector3i volume_min = offset;
+      Vector3i volume_max = offset.array() + (_N-1);
+
+      occupancy_buffer_.getPoint(volume_min, min_point);
+      occupancy_buffer_.getPoint(volume_max, max_point);
+  }
+
+  inline Vector3i getVolumeCenter() {
+    return occupancy_buffer_.getVolumeCenter();
   }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

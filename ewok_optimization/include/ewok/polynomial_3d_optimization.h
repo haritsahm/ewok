@@ -101,7 +101,7 @@ class Polynomial3DOptimization {
       return;
     }
 
-    min_segment_time = 0.1;
+    min_segment_time = 0.5;
 
     // Velocity, Acceleration, Jerk, Snap
     // If 0 - no constraints

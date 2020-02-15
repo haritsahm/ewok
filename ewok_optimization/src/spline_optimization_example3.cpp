@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
   ros::Publisher dist_marker_pub = nh.advertise<visualization_msgs::Marker>("ring_buffer/distance", 1, true);
 
   // Set up global trajectory
-  const Eigen::Vector4d limits(1.2, 4, 0, 0);
+  const Eigen::Vector4d limits(0.7, 4, 0, 0);
 
   ewok::Polynomial3DOptimization<10> po(limits*0.8);
 
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
   auto traj = po.computeTrajectory(vec);
 
   visualization_msgs::MarkerArray traj_marker;
-  traj->getVisualizationMarkerArray(traj_marker, "trajectory", Eigen::Vector3d(1, 0, 0));
+  traj->getVisualizationMarkerArray(traj_marker, "trajectory", Eigen::Vector3d(1, 0, 0), 0.5);
 
   global_traj_pub.publish(traj_marker);
 

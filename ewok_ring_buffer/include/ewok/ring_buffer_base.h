@@ -30,6 +30,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <math.h>
 
 
 namespace ewok {
@@ -177,6 +178,59 @@ class RingBufferBase {
   inline Vector3i getVolumeCenter() {
       static const Vector3i inc(_N_2, _N_2, _N_2);
       return offset_ + inc;
+  }
+
+  template<typename F>
+  inline bool isPointNear(const Vector3 & point, const _Scalar & rad, F func)
+  {
+      bool found = false;
+      for (int x = 0; x < _N; x++) {
+          for (int y = 0; y < _N; y++) {
+              for (int z = 0; z < _N; z++) {
+
+
+                  Vector3i coord(x, y, z);
+                  coord += offset_;
+
+                  Vector3 res;
+                  getPoint(coord, res);
+
+                  Vector3i p_idx;
+                  Vector3 p_point;
+                  getIdx(point, p_idx);
+                  getPoint(p_idx, p_point);
+
+                  Vector3 diff = p_point-res;
+
+
+                  if(std::fabs(diff.z()) < 0.5)
+                  {
+                      //                      std::cout << "POINT: \n" << point << std::endl;
+                      //                      std::cout << "BOX: \n" << res << std::endl;
+
+                      _Datatype &data = this->at(coord);
+
+                      if (func(data))
+                      {
+                          //                          diff.z() = 0;
+                          if (diff.norm() < rad /*&& std::fabs(diff.z()) < (rad/2.0)*/)
+                          {
+                              //                              std::cout << "Near" << res << std::endl;
+                              found=true;
+                              break;
+                          }
+                      }
+                  }
+              }
+
+              if(found) break;
+          }
+          if(found) break;
+      }
+
+
+      return found;
+
   }
 
   template<typename F>

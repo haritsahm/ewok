@@ -67,6 +67,21 @@ class PolynomialTrajectory3D {
       return _segments[seg_num]->evaluate(lt, derivative);
   }
 
+  std::vector<Vector3> evaluates(const _Scalar t, _Scalar dt, int num_pt, int derivative = 0) const {
+      _Scalar lt;
+      size_t seg_num;
+      std::vector<Vector3> pts;
+
+      for(int i = 0; i < num_pt; i++)
+      {
+          findSegmentNumAndLocalTime(t+(dt*i), lt, seg_num);
+          pts.push_back(_segments[seg_num]->evaluate(lt, derivative));
+      }
+
+      return pts;
+
+  }
+
   void getVisualizationMarkerArray(visualization_msgs::MarkerArray &traj_marker_array,
                                    const std::string &ns,
                                    const Eigen::Vector3d &color,

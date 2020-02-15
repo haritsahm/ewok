@@ -60,8 +60,7 @@ std::ofstream f_time, opt_time;
 ewok::PolynomialTrajectory3D<10>::Ptr traj;
 ewok::EuclideanDistanceRingBuffer<POW>::Ptr edrb;
 ewok::UniformBSpline3DOptimization<6>::Ptr spline_optimization;
-
-ros::Publisher occ_marker_pub, free_marker_pub, dist_marker_pub, trajectory_pub, current_traj_pub;
+ros::Publisher occ_marker_pub, free_marker_pub, dist_marker_pub, trajectory_pub, current_traj_pub, command_pt_pub, command_pt_viz_pub;
 tf::TransformListener * listener;
 
 
@@ -208,7 +207,26 @@ void sendCommandCallback(const ros::TimerEvent& e) {
     pp.y = pc[1];
     pp.z = pc[2];
 
+    visualization_msgs::Marker point_marker;
+
+    point_marker.header.frame_id = "world";
+    point_marker.ns = "command_points";
+    point_marker.id = 0;
+    point_marker.type = visualization_msgs::Marker::POINTS;
+    point_marker.action = visualization_msgs::Marker::MODIFY;
+    point_marker.scale.x = 0.1;
+    point_marker.scale.y = 0.1;
+    point_marker.scale.z = 0.1;
+    point_marker.color.a = 1.0;
+
+    point_marker.color.r = 1;
+    point_marker.color.g = 1;
+    point_marker.color.b = 0;
+    point_marker.points.push_back(pp);
+
+
     trajectory_pub.publish(pp);
+    command_pt_viz_pub.publish(point_marker);
 
     spline_optimization->getMarkers(traj_marker);
     current_traj_pub.publish(traj_marker);
@@ -238,6 +256,7 @@ int main(int argc, char** argv){
     occ_marker_pub = nh.advertise<visualization_msgs::Marker>("ring_buffer/occupied", 5);
     free_marker_pub = nh.advertise<visualization_msgs::Marker>("ring_buffer/free", 5);
     dist_marker_pub = nh.advertise<visualization_msgs::Marker>("ring_buffer/distance", 5);
+    command_pt_viz_pub = nh.advertise<visualization_msgs::Marker>("ring_buffer/command_pt", 5);
 
     trajectory_pub =
             nh.advertise<geometry_msgs::Point>(

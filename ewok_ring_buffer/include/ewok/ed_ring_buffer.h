@@ -66,9 +66,67 @@ class EuclideanDistanceRingBuffer {
     distance_buffer_.getPoint(idx, point);
   }
 
-  inline Vector3i getVolumeCenter() {
-    return distance_buffer_.getVolumeCenter();
+  inline void getIdxBuffer(const Vector3 & point, Vector3i & idx) {
+    occupancy_buffer_.getIdx(point, idx);
   }
+
+  inline void getPointBuffer(const Vector3i & idx, Vector3 & point) {
+    occupancy_buffer_.getPoint(idx, point);
+  }
+
+  inline Vector3i getVolumeCenter() {
+    return occupancy_buffer_.getVolumeCenter();
+  }
+
+  inline void getVolumeMinMax(Vector3 &min_point, Vector3 &max_point)
+  {
+      occupancy_buffer_.getVolumeMinMax(min_point, max_point);
+  }
+
+  inline bool isNearObstacle(const Vector3 & point, const _Scalar & radius_)
+  {
+    return occupancy_buffer_.isPointNear(point, radius_);
+  }
+
+  std::vector<bool> isNearObstacle(const std::vector<Vector3> & points, const _Scalar & radius_)
+  {
+      std::vector<bool> sol;
+      for(Vector3 pt:points)
+      {
+          sol.push_back(occupancy_buffer_.isPointNear(pt, radius_));
+      }
+      return sol;
+  }
+
+  inline bool isOccupied(const Vector3i & idx)
+  {
+      occupancy_buffer_.isOccupied(idx);
+  }
+
+  inline bool isFree(const Vector3i & idx)
+  {
+      occupancy_buffer_.isFree(idx);
+  }
+
+  inline bool insideVolume(const Vector3 & point)
+  {
+      return occupancy_buffer_.insideVolume(point);
+  }
+
+  inline bool insideVolume(const std::vector<Vector3> & points)
+  {
+      for(Vector3 pt:points)
+      {
+          if(!occupancy_buffer_.insideVolume(pt))
+          {
+              return false;
+          }
+      }
+
+      return true;
+  }
+
+  inline _Scalar getResolution() {return resolution_;}
 
   void updateDistance() {
     compute_edt3d();

@@ -8,6 +8,7 @@ add_definitions(-std=c++11 -g -O3 -ftree-vectorize -march=native)
 find_package(catkin_simple REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(SuiteSparse REQUIRED)
+find_package(Boost COMPONENTS thread REQUIRED)
 
 include_directories(${EIGEN3_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR})
 
@@ -21,6 +22,10 @@ target_link_libraries(spline_optimization_example2 nlopt)
 
 cs_add_executable(spline_optimization_example3 src/spline_optimization_example3.cpp)
 target_link_libraries(spline_optimization_example3 ${CHOLMOD_LIBRARY} nlopt)
+
+cs_add_executable(spline_optimization_example4 src/spline_optimization_example4.cpp)
+target_link_libraries(spline_optimization_example4 ${CHOLMOD_LIBRARY} nlopt)
+
 
 cs_add_executable(polynomial_optimization_example src/polynomial_optimization_example.cpp)
 target_link_libraries(polynomial_optimization_example ${CHOLMOD_LIBRARY})

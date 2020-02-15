@@ -45,7 +45,7 @@ class UniformBSpline3D {
 
   static const int OFFSET = N / 2 - 1;
 
-  typedef std::shared_ptr <UniformBSpline3D<_N, _Scalar>> Ptr;
+  typedef std::shared_ptr<UniformBSpline3D<_N, _Scalar>> Ptr;
 
   typedef Eigen::Matrix<_Scalar, 3, 1> Vector3;
 
