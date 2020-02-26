@@ -107,7 +107,6 @@ void depthImageCallback(const sensor_msgs::Image::ConstPtr& msg)
         return;
     }
 
-
     Eigen::Affine3d dT_w_c;
     tf::transformTFToEigen(transform, dT_w_c);
 
@@ -184,10 +183,10 @@ void depthImageCallback(const sensor_msgs::Image::ConstPtr& msg)
 }
 
 int main(int argc, char** argv){
-    if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
-    {
-        ros::console::notifyLoggerLevelsChanged();
-    }
+//    if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
+//    {
+//        ros::console::notifyLoggerLevelsChanged();
+//    }
     ros::init(argc, argv, "trajectory_replanning_example");
     ros::NodeHandle nh;
     ros::NodeHandle pnh("~");
@@ -218,8 +217,8 @@ int main(int argc, char** argv){
 
 
     double max_velocity, max_acceleration;
-    pnh.param("max_velocity", max_velocity, 2.0);
-    pnh.param("max_acceleration", max_acceleration, 5.0);
+    pnh.param("max_velocity", max_velocity, 1.0);
+    pnh.param("max_acceleration", max_acceleration, 2.0);
 
     Eigen::Vector4d limits(max_velocity, max_acceleration, 0, 0);
 
@@ -314,6 +313,8 @@ int main(int argc, char** argv){
         spline_.push_back(Eigen::Vector3d(start_x, start_y, start_z));
     }
 
+    path_planner->setHeight(Eigen::Vector3f(start_x, start_y, start_z));
+
     std_srvs::Empty srv;
     bool unpaused = ros::service::call("/gazebo/unpause_physics", srv);
     unsigned int i = 0;
@@ -363,21 +364,20 @@ int main(int argc, char** argv){
     int pt_cnt = 0;
     bool pt_started = false;
     bool pt_found = false;
-    bool point_found = false;
+    bool start_pt_found = false, finish_pt_found = false;
+    bool flag_holdSpline = false;
 
     double time_start = 0, time_stop = 0;
     Eigen::Vector3f start_point, stop_point;
     bool use_gt = true;
 
-    std::list<std::list<Eigen::Vector3f> > path_points;
-
-
-
-    std::list<Eigen::Vector3d> ctrl_points_;
+    std::list<Eigen::Vector3d> ctrl_points_, temp_ctrl_points;
     std::vector<Eigen::Vector3f> obs_points, prev_ctrl_points;
     Eigen::Vector3f pt_start, pt_end, cp_prev;
     std::vector<bool> prev_ctrl_pts_bool;
     ros::Rate r(1/dt);
+
+    Eigen::Vector3f pt_hold, point_prev, point_next;
 
     ros::Time diff, prev_time;
 
@@ -387,7 +387,23 @@ int main(int argc, char** argv){
     {
         r.sleep();
 
-        edrb->updateDistance();
+        tf::StampedTransform transform;
+
+
+        try{
+
+            listener->lookupTransform("world", "firefly/base_link",
+                                      ros::Time(0), transform);
+        }
+        catch (tf::TransformException &ex) {
+            ROS_INFO("Couldn't get transform");
+            ROS_WARN("%s",ex.what());
+        }
+
+        Eigen::Affine3d base_link;
+        tf::transformTFToEigen(transform, base_link);
+
+        path_planner->setRobotPos(base_link.translation().cast<float>());
 
         bool pt_near = false;
         updated = false;
@@ -395,75 +411,87 @@ int main(int argc, char** argv){
         if(current_time < traj->duration())
         {
             std::vector<Eigen::Vector3d> ctrl_points = traj->evaluates(current_time, dt, 4, 0);
+            Eigen::Vector3d segment_point = traj->evaluateEndSegment(current_time, 0);
             std::vector<Eigen::Vector3f> ctrl_points_f;
             for(Eigen::Vector3d pt: ctrl_points)
             {
                 ctrl_points_f.push_back(pt.cast<float>());
             }
 
+            if(Eigen::Vector3f(base_link.translation().cast<float>() - ctrl_points_f[0]).norm() > 2)
+                flag_holdSpline = true;
+            else
+                flag_holdSpline = false;
+
             std::vector<Eigen::Vector3f> ctrl_pts_near;
 
             if(edrb->insideVolume(ctrl_points_f))
             {
-                updated = true;
-
                 std::vector<bool> ctrl_pts_bool = edrb->isNearObstacle(ctrl_points_f, 1.2);
-                //                for(std::vector<bool>::iterator it = ctrl_pts_bool.begin(); it != ctrl_pts_bool.end(); i++)
-                //                    std::cout << *it << std::endl;
+
                 for(int i =0; i < ctrl_pts_bool.size()-1; i++)
                 {
                     bool prev_bool = ctrl_pts_bool[i];
                     bool next_bool = ctrl_pts_bool[i+1];
-                    Eigen::Vector3f point_prev = ctrl_points_f[i];
-                    Eigen::Vector3f point_next = ctrl_points_f[i+1];
+                    point_prev = ctrl_points_f[i];
+                    point_next = ctrl_points_f[i+1];
 
-                    if(!prev_bool && next_bool)
+                    if(!prev_bool && next_bool && start_point != point_prev)
                     {
-                        if(!point_found)
+                        if(!start_pt_found && !path_planner->isRunnning())
                         {
                             time_start = current_time+(dt*i);
                             obs_points.push_back(point_next);
-                            point_found = true;
+                            start_pt_found = true;
                             ROS_WARN("FOUND START");
                             std::cout << "Source : \n";
                             std::cout << point_prev << std::endl;
-                            start_point = point_prev;
+                            pt_hold = start_point = point_prev;
                             path_planner->setStartPoint(point_prev);
+
+                        }
+                        else if(start_pt_found && path_planner->isRunnning())
+                        {
+                           time_start = current_time+(dt*i);
+                           pt_hold = start_point = point_prev;
+                           path_planner->setStartPoint(point_prev);
                         }
                     }
 
-                    if(prev_bool && !next_bool)
+                    if(prev_bool && !next_bool && stop_point != point_next)
                     {
-                        if(point_found && (obs_points.size()==1))
+                        if(start_pt_found && (obs_points.size()==1))
                         {
-                            point_found = false;
+                            start_pt_found = false;
                             obs_points.clear();
                             path_planner->reset();
                         }
 
-                        //                        else if(point_found && path_planner->isRunnning())
-                        //                        {
-                        //                            path_planner->setTargetPoint(point_next);
-                        //                        }
-
-                        else if(point_found && (obs_points.size()>1))
+                        else if(start_pt_found && (obs_points.size()>1) && !path_planner->isRunnning())
                         {
-                            point_found = false;
                             obs_points.clear();
                             ROS_WARN("FOUND TARGET");
                             std::cout << "Target : \n";
                             std::cout << point_next << std::endl;
+                            finish_pt_found = true;
+                            flag_holdSpline = true;
                             time_stop = current_time+(dt*(i+1));
                             stop_point = point_next;
                             path_planner->setTargetPoint(point_next);
                             path_planner->findPath();
-                            //                            path_planner->solve(1000);
                         }
 
-
-
+                        else if (start_pt_found && path_planner->isRunnning())
+                        {
+                            ROS_WARN("REQUESTING RRT");
+//                            flag_holdSpline = true;
+                            time_stop = current_time+(dt*(i+1));
+                            path_planner->setTargetPoint(point_next);
+                            path_planner->findPath();
+                        }
 
                     }
+
                     if(!prev_bool && !next_bool)
                     {
                         if(std::find(obs_points.begin(), obs_points.end(), point_prev) == obs_points.end())
@@ -478,9 +506,47 @@ int main(int argc, char** argv){
                 }
 
 
+                if(start_pt_found && path_planner->isSolved())
+                {
+                    ROS_INFO("Getting Data from RRT");
+                    std::list<Eigen::Vector3f> path_points = path_planner->getPathPoints();
+                    for(Eigen::Vector3f pt: path_points)
+                    {
+                        ctrl_points_.push_back(pt.cast<double>());
+                    }
+                    start_pt_found = false;
+                    flag_holdSpline = false;
+                    current_time = time_stop;
+                }
 
-                //                if(prev_ctrl_pts_bool.empty())
-                //                {
+                // If RRT Not Solved use starting point
+                else if(start_pt_found && !path_planner->isSolved())
+                {
+                    ROS_INFO("Still Solving RRT");
+                    if(current_time < time_start)
+                    {
+                        if(std::find(ctrl_points_.begin(), ctrl_points_.end(), ctrl_points_f[0].cast<double>()) == ctrl_points_.end())
+                        {
+                            ROS_INFO("Using SPline");
+                            ctrl_points_.push_back(ctrl_points_f[0].cast<double>());
+                        }
+                    }
+                    else {
+                       ctrl_points_.push_back(pt_hold.cast<double>());
+                    }
+                    
+                }
+
+                // Using Spline
+                else if(!start_pt_found && !path_planner->isRunnning() /*|| !path_planner->isSolved())*/)
+                {
+                    if(!ctrl_pts_bool[0])
+                        if(std::find(ctrl_points_.begin(), ctrl_points_.end(), ctrl_points_f[0].cast<double>()) == ctrl_points_.end())
+                        {
+                            ROS_INFO("Using SPline");
+                            ctrl_points_.push_back(ctrl_points_f[0].cast<double>());
+                        }
+                }
 
                 for(int i =0; i < ctrl_pts_bool.size(); i++)
                 {
@@ -490,12 +556,6 @@ int main(int argc, char** argv){
                     p.x = point(0);
                     p.y = point(1);
                     p.z = point(2);
-
-//                    if(!obs)
-                        if(std::find(ctrl_points_.begin(), ctrl_points_.end(), point.cast<double>()) == ctrl_points_.end())
-                        {
-                            ctrl_points_.push_back(point.cast<double>());
-                        }
 
                     if(obs)
                     {
@@ -508,50 +568,23 @@ int main(int argc, char** argv){
                         ctrl_pts_marker.points.push_back(p);
                     }
                 }
-                //                }
-
-                //                else {
-                //                    int obs;
-                //                    if(ctrl_pts_bool[ctrl_pts_bool.size()-1]) obs = 1; else obs = 0;
-                //                    Eigen::Vector3f pt = ctrl_points_f[ctrl_pts_bool.size()-1];
-
-                //                    if(std::find(ctrl_points_.begin(), ctrl_points_.end(), pt.cast<double>()) == ctrl_points_.end())
-                //                    {
-                //                        ctrl_points_.push_back(pt.cast<double>());
-                //                    }
-
-                //                    geometry_msgs::Point p;
-                //                    p.x = pt.x();
-                //                    p.y = pt.y();
-                //                    p.z = pt.z();
-
-                //                    if(obs)
-                //                    {
-                //                        ctrl_pts_marker.colors.push_back(c_obs);
-                //                        ctrl_pts_marker.points.push_back(p);
-                //                    }
-
-                //                    else {
-                //                        ctrl_pts_marker.colors.push_back(c_free);
-                //                        ctrl_pts_marker.points.push_back(p);
-                //                    }
-                //                }
 
                 prev_ctrl_pts_bool = ctrl_pts_bool;
-                current_time += dt;
 
+                if(!flag_holdSpline)
+                    current_time += dt;
             }
 
 
             traj_checker_pub.publish(ctrl_pts_marker);
         }
 
-        ROS_WARN("Checking RRT");
+//        ROS_WARN("Checking RRT");
 
         if(path_planner->isSolved())
         {
             use_gt = false;
-            path_points.push_back(path_planner->getPathPoints());
+//            path_points.push_back(path_planner->getPathPoints());
             ROS_WARN("FOUND SOLUTION");
             visualization_msgs::MarkerArray rrt_marker;
             rrt_marker.markers.resize(2);
@@ -562,26 +595,10 @@ int main(int argc, char** argv){
             path_planner->reset();
         }
 
-        ROS_WARN("Generating Path Spline");
+//        ROS_WARN("Generating Path Spline");
 
         if(current_time > ros::Duration(2).toSec())
         {
-            if(ctrl_points_.front().cast<float>() == start_point && !use_gt)
-            {
-                if(!path_points.empty())
-                {
-                    if(!path_points.front().empty())
-                    {
-                        spline_.push_back(path_points.front().front().cast<double>());
-                    }
-                    else {
-                        //                    path_points.pop_front();
-                        use_gt=true;
-                    }
-                }
-            }
-
-            else if (ctrl_points_.front().cast<float>() != start_point && use_gt)
                 spline_.push_back(ctrl_points_.front());
         }
 
@@ -595,28 +612,27 @@ int main(int argc, char** argv){
         current_traj_pub.publish(traj_marker);
 
 
-        ROS_WARN("Getting Point to Controller");
+//        ROS_WARN("Getting Point to Controller");
 
-        if(updated)
-        {
+//        if(updated || (path_planner->isRunnning() || path_planner->isSolved()))
+//        {
 
             if(!ctrl_points_.empty())
             {
                 geometry_msgs::Point pp;
                 Eigen::Vector3d point_ = ctrl_points_.front();
 
-                std::cout << "Publishing : \n" << point_ << std::endl;
+//                std::cout << "Publishing Point \n" << point_ << std::endl;
 
                 pp.x = point_.x();
                 pp.y = point_.y();
                 pp.z = point_.z();
                 trajectory_pub.publish(pp);
 
-                ctrl_points_.pop_front();
+                if(ctrl_points_.size()>1)
+                    ctrl_points_.pop_front();
             }
-        }
-
-        ROS_WARN("Updating Index");
+//        }
 
         ros::spinOnce();
 

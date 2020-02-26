@@ -9,6 +9,8 @@ Panels:
         - /Marker3
         - /MarkerArray2
         - /TF1/Frames1
+        - /Marker4
+        - /MarkerArray3
       Splitter Ratio: 0.4971559941768646
     Tree Height: 528
   - Class: rviz/Selection
@@ -96,7 +98,7 @@ Visualization Manager:
       Marker Topic: /firefly/global_trajectory
       Name: MarkerArray
       Namespaces:
-        gt: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -221,23 +223,7 @@ Visualization Manager:
       Marker Topic: /firefly/rrt_trajectory
       Name: MarkerArray
       Namespaces:
-        rrt_trajectory_markers: true
-      Queue Size: 100
-      Value: true
-    - Class: rviz/MarkerArray
-      Enabled: true
-      Marker Topic: /firefly/rrt_trajectory
-      Name: MarkerArray
-      Namespaces:
-        rrt_trajectory_markers: true
-      Queue Size: 100
-      Value: true
-    - Class: rviz/Marker
-      Enabled: true
-      Marker Topic: /firefly/checker_trajectory
-      Name: Marker
-      Namespaces:
-        spline loop test: true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
@@ -268,25 +254,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 5.343356132507324
+      Distance: 21.905136108398438
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.445010185241699
-        Y: -0.11508820950984955
-        Z: -2.460841655731201
+        X: -0.034458160400390625
+        Y: -0.011081695556640625
+        Z: -0.019791066646575928
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8453994989395142
+      Pitch: 0.8449136018753052
       Target Frame: firefly/base_link
       Value: Orbit (rviz)
-      Yaw: 1.7753933668136597
+      Yaw: 1.308310866355896
     Saved: ~
 Window Geometry:
   Displays:

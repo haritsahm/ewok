@@ -45,8 +45,9 @@ public:
           radius_(radius),
           debugging_(false),
           running_(false),
+          request_(false),
           sampling_alpha(0.2),
-          sampling_beta(2)
+          sampling_beta(1.5)
     {
         solved_ = false;
         index_point = 0;
@@ -74,6 +75,11 @@ public:
         nodes_.push_back(root_);
     }
 
+    void setRobotPos(const Vector3 &pos)
+    {
+        robot_pos = pos;
+    }
+
     void setDistanceBuffer(EuclideanDistanceRingBuffer<6>::Ptr & edrb) {
         edrb_ = edrb;
     }
@@ -97,10 +103,16 @@ public:
 
     void setStartPoint(Vector3 start)
     {
-        start_=start;
-//        for(int i=0; i < _N/2; i++)
-//            spline_.push_back(start);
-        edges_.clear();
+        if(running_)
+        {
+            temp_start_ = start;
+            request_ = true;
+        }
+        else {
+            start_=start;
+            edges_.clear();
+        }
+
 
         initialize();
 
@@ -108,15 +120,27 @@ public:
 
     void setTargetPoint(Vector3 target)
     {
-        target_=target;
-        goal_node = new Node;
-        goal_node->pos_ = target;
+        if(request_)
+        {
+            temp_target_ = target;
+        }
+        else {
+            target_=target;
+            goal_node = new Node;
+            goal_node->pos_ = target;
+        }
+
+    }
+
+    void setHeight(Vector3 point)
+    {
+        height_ = point;
     }
 
     _Scalar getStepSize()
     {
-//        return step_size_;
-        return getRandomNumber(0.3*step_size_, 1.2*step_size_);
+        return step_size_;
+//        return getRandomNumber(0.3*step_size_, 1.2*step_size_);
     }
 
     _Scalar getCost(Node* n)
@@ -134,7 +158,7 @@ public:
         return (p2-p1).norm();
     }
 
-    bool isNear(Vector3 &point, _Scalar tol=10)
+    bool isNear(Vector3 &point, _Scalar tol=2)
     {
         if(distance(point, target_) < tol)
             return true;
@@ -177,19 +201,30 @@ public:
         return num;
     }
 
+    Vector3 EllipsoidSampling()
+    {
+        Vector3 center = (start_ + target_)/2;
+
+        double phi = getRandomNumber(0,2*M_PI);
+        double costheta = getRandomNumber(-1,1);
+        double r = getRandomNumber(0,1);
+
+        double theta = acos( costheta );
+
+        double x = r * sin( theta) * cos( phi );
+        double y = r * sin( theta) * sin( phi );
+        double z = r * cos( theta );
+
+        Node* rand = new Node;
+//        rand->position_ = Vector3;
+        return  rand;
+    }
+
     Vector3 LineSampling()
     {
-        ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Getting Line");
-
         Node* near_n = getNearestNode(goal_node);
-        ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Getting Nearest From Goal");
-
         Vector3 len = goal_node->pos_-near_n->pos_;
-        ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Getting Random Line Point");
-
         _Scalar r = getRandomNumber(0,1);
-
-        ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Randomly find Point Between");
         return near_n->pos_+r*len;
     }
 
@@ -204,7 +239,7 @@ public:
         do{
             rand_point = Vector3(getRandomNumber(0.6*point_min.x(), point_max.x()),
                                  getRandomNumber(point_min.y(), point_max.y()),
-                                 center_point.z());
+                                 height_.z());
             edrb_->getIdxBuffer(rand_point, point_idx);
 
         }while(edrb_->isOccupied(point_idx));
@@ -282,9 +317,28 @@ public:
 
     void findPath(int iter = 2000)
     {
-        // generate path
-        tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solve, this, iter));
-        delete tra_gene_thread_;
+        if(request_)
+        {
+            start_=temp_start_;
+            edges_.clear();
+            initialize();
+
+            target_=temp_target_;
+//            goal_node = new Node;
+            goal_node->pos_ = target_;
+            request_ = false;
+
+            // generate path
+            tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solve, this, iter));
+            delete tra_gene_thread_;
+
+        }
+        else
+        {
+            // generate path
+            tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solve, this, iter));
+            delete tra_gene_thread_;
+        }
     }
 
     void solve(int iter=5000)
@@ -296,22 +350,18 @@ public:
         path_point_.clear();
         bool found = false;
         solved_ = false;
-        std::cout << "RRT FINDING" << std::endl;
         ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Starting RRT");
         while(counter<iter)
         {
             ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Getting Random Node");
             Node* rand_node = getRandomSampling();
-//            std::cout << "Found Random Node: \n" << rand_node->pos_ << std::endl;
             if(rand_node)
             {
                 ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Find Nearest");
                 Node* nearest_node = getNearestNode(rand_node);
-//                std::cout << "Found Nearest Node: \n" << nearest_node->pos_ << std::endl;
 
                 ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Get Conf Node");
                 Node* new_node = getConfigurationNode(rand_node, nearest_node);
-//                std::cout << "Found New Node: \n" << new_node->pos_ << std::endl;
 
                 if(!isCollision(nearest_node, new_node))
                 {
@@ -353,14 +403,9 @@ public:
                     }
 
                 }
-//                else
-//                {
-//                    ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Collision Found");
-//                    edges_.push_back(std::make_tuple(nearest_node->pos_, new_node->pos_, true));
-//                }
             }
 
-            if(isNear(lastNode_->pos_, step_size_))
+            if(isNear(lastNode_->pos_, step_size_*rrt_factor_))
             {
                 ROS_DEBUG_COND_NAMED(debugging_, "RRT PLANNER", "Target Found");
                 std::cout << "Source: \n" << start_ << std::endl;
@@ -377,10 +422,10 @@ public:
         mutex.unlock();
 
         if(found)
-            for(int i=0; i < 3; i++)
-            {
+//            for(int i=0; i < 3; i++)
+//            {
                 path_point_.push_back(target_);
-            }
+//            }
 
         else
         {
@@ -405,10 +450,10 @@ public:
             final = final->parent_;
         }
 
-        for(int i=0; i < 3; i++)
-        {
+//        for(int i=0; i < 3; i++)
+//        {
             path_point_.push_front(start_);
-        }
+//        }
 
         running_ = false;
         solved_=true;
@@ -505,14 +550,14 @@ protected:
 
     UniformBSpline3D<_N, _Scalar> spline_;
 
-    Vector3 start_, target_;
+    Vector3 start_, temp_start_, target_, temp_target_, height_, robot_pos;
     _Scalar step_size_;
     std::vector<Node *> nodes_;
     Node *root_, *lastNode_, *goal_node;
     _Scalar rrt_factor_, radius_;
     std::list<Vector3> path_point_;
     std::vector<Edge> edges_;
-    bool solved_, running_;
+    bool request_, solved_, running_;
     bool debugging_;
 
     boost::thread *tra_gene_thread_;
