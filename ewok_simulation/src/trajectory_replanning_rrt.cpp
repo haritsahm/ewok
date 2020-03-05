@@ -68,7 +68,7 @@ std::ofstream f_time, opt_time;
 ewok::PolynomialTrajectory3D<10>::Ptr traj;
 ewok::EuclideanDistanceRingBuffer<POW>::Ptr edrb;
 ewok::RRTStar3D<POW>::Ptr path_planner;
-//ewok::UniformBSpline3DOptimization<6>::Ptr spline_optimization;
+
 ros::Publisher rrt_planner_pub, occ_marker_pub, free_marker_pub, dist_marker_pub, trajectory_pub, current_traj_pub, command_pt_pub, command_pt_viz_pub;
 tf::TransformListener * listener;
 
@@ -222,23 +222,6 @@ int main(int argc, char** argv){
 
     Eigen::Vector4d limits(max_velocity, max_acceleration, 0, 0);
 
-    ROS_WARN("INITIALIZE");
-
-    double resolution;
-    pnh.param("resolution", resolution, 0.15);
-    edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW>(resolution, 1.0));
-    ewok::UniformBSpline3D<6> spline_(dt);
-    ROS_WARN("SPLINE DONE");
-    path_planner.reset(new ewok::RRTStar3D<POW>(0.25, 1.25, 1, dt));
-    path_planner->setDistanceBuffer(edrb);
-    //    spline_.reset(new ewok::UniformBSpline3D<6>(dt));
-
-    ROS_WARN("READY TO RUN");
-
-
-    double distance_threshold;
-    pnh.param("distance_threshold", distance_threshold, 0.5);
-
     double start_x, start_y, start_z, start_yaw;
     pnh.param("start_x", start_x, 0.0);
     pnh.param("start_y", start_y, 0.0);
@@ -294,26 +277,48 @@ int main(int argc, char** argv){
     c_free.b = 0.0;
     c_free.a = 1.0;
 
+    /**
+     * Generate Original Spline Trajectory
+     */
+
     ewok::Polynomial3DOptimization<10> to(limits*0.4);
+
+    {
     typename ewok::Polynomial3DOptimization<10>::Vector3Array vec;
 
     vec.push_back(Eigen::Vector3d(start_x, start_y, start_z));
     vec.push_back(Eigen::Vector3d(middle_x, middle_y, middle_z));
     vec.push_back(Eigen::Vector3d(stop_x, stop_y, stop_z));
 
-    auto traj = to.computeTrajectory(vec);
+    traj = to.computeTrajectory(vec);
 
     visualization_msgs::MarkerArray traj_marker;
     traj->getVisualizationMarkerArray(traj_marker, "gt", Eigen::Vector3d(1,0,1));
     traj_marker_pub.publish(traj_marker);
-
-
-
-    for (int i = 0; i < num_opt_points; i++) {
-        spline_.push_back(Eigen::Vector3d(start_x, start_y, start_z));
     }
 
+
+    double resolution;
+    pnh.param("resolution", resolution, 0.15);
+
+    edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW>(resolution, 1.0));
+    ewok::UniformBSpline3D<6> spline_(dt);
+
+    path_planner.reset(new ewok::RRTStar3D<POW>(traj, 0.25, 1.65, 1, 6, dt));
+    path_planner->setDistanceBuffer(edrb);
+
+    for (int i = 0; i < num_opt_points; i++) {
+        path_planner->addControlPoint(Eigen::Vector3f(start_x, start_y, start_z));
+    }
+
+    path_planner->setNumControlPointsOptimized(num_opt_points);
     path_planner->setHeight(Eigen::Vector3f(start_x, start_y, start_z));
+
+    /**
+     *
+     * Waiting Gazebo Running
+     *
+     */
 
     std_srvs::Empty srv;
     bool unpaused = ros::service::call("/gazebo/unpause_physics", srv);
@@ -335,6 +340,11 @@ int main(int argc, char** argv){
         ROS_INFO("Unpaused the Gazebo simulation.");
     }
 
+    /**
+      * Waiting Gazebo GUI
+      *
+      */
+
     // Wait for 5 seconds to let the Gazebo GUI show up.
     ros::Duration(5.0).sleep();
 
@@ -343,9 +353,6 @@ int main(int argc, char** argv){
     p.x = start_x;
     p.y = start_y;
     p.z = start_z;
-
-    //Eigen::Vector3d desired_position(start_x, start_y, start_z);
-    double desired_yaw = start_yaw;
 
     ROS_INFO("Publishing waypoint on namespace %s: [%f, %f, %f, %f].",
              nh.getNamespace().c_str(),
@@ -358,30 +365,21 @@ int main(int argc, char** argv){
     ros::Duration(5.0).sleep();
 
     double current_time=0;
-    int ctrl_points_idx = 0;
-    bool updated = false;
-    bool pt_prev = false;
-    int pt_cnt = 0;
-    bool pt_started = false;
-    bool pt_found = false;
     bool start_pt_found = false, finish_pt_found = false;
     bool flag_holdSpline = false;
+    bool flag_useImmidiate = false;
+
+    int hold_counter = 0;
 
     double time_start = 0, time_stop = 0;
     Eigen::Vector3f start_point, stop_point;
-    bool use_gt = true;
 
-    std::list<Eigen::Vector3d> ctrl_points_, temp_ctrl_points;
-    std::vector<Eigen::Vector3f> obs_points, prev_ctrl_points;
-    Eigen::Vector3f pt_start, pt_end, cp_prev;
+    std::list<Eigen::Vector3d> ctrl_points_;
+    std::vector<Eigen::Vector3f> obs_points;
     std::vector<bool> prev_ctrl_pts_bool;
     ros::Rate r(1/dt);
 
-    Eigen::Vector3f pt_hold, point_prev, point_next;
-
-    ros::Time diff, prev_time;
-
-    prev_time = ros::Time::now();
+    Eigen::Vector3f pt_hold, point_prev, point_next, last_point;
 
     while(ros::ok())
     {
@@ -405,20 +403,17 @@ int main(int argc, char** argv){
 
         path_planner->setRobotPos(base_link.translation().cast<float>());
 
-        bool pt_near = false;
-        updated = false;
-
         if(current_time < traj->duration())
         {
             std::vector<Eigen::Vector3d> ctrl_points = traj->evaluates(current_time, dt, 4, 0);
-            Eigen::Vector3d segment_point = traj->evaluateEndSegment(current_time, 0);
+            Eigen::Vector3d end_segment_point = traj->evaluateEndSegment(current_time, 0);
             std::vector<Eigen::Vector3f> ctrl_points_f;
             for(Eigen::Vector3d pt: ctrl_points)
             {
                 ctrl_points_f.push_back(pt.cast<float>());
             }
 
-            if(Eigen::Vector3f(base_link.translation().cast<float>() - ctrl_points_f[0]).norm() > 2)
+            if(Eigen::Vector3f(base_link.translation().cast<float>() - ctrl_points_f[0]).norm() > 2.5)
                 flag_holdSpline = true;
             else
                 flag_holdSpline = false;
@@ -448,13 +443,15 @@ int main(int argc, char** argv){
                             std::cout << point_prev << std::endl;
                             pt_hold = start_point = point_prev;
                             path_planner->setStartPoint(point_prev);
+                            path_planner->setTargetPoint(end_segment_point.cast<float>(), false);
+                            path_planner->findPath(5000);
 
                         }
                         else if(start_pt_found && path_planner->isRunnning())
                         {
-                           time_start = current_time+(dt*i);
-                           pt_hold = start_point = point_prev;
-                           path_planner->setStartPoint(point_prev);
+                            time_start = current_time+(dt*i);
+                            pt_hold = start_point = point_prev;
+                            path_planner->setStartPoint(point_prev);
                         }
                     }
 
@@ -467,27 +464,13 @@ int main(int argc, char** argv){
                             path_planner->reset();
                         }
 
-                        else if(start_pt_found && (obs_points.size()>1) && !path_planner->isRunnning())
-                        {
-                            obs_points.clear();
-                            ROS_WARN("FOUND TARGET");
-                            std::cout << "Target : \n";
-                            std::cout << point_next << std::endl;
-                            finish_pt_found = true;
-                            flag_holdSpline = true;
-                            time_stop = current_time+(dt*(i+1));
-                            stop_point = point_next;
-                            path_planner->setTargetPoint(point_next);
-                            path_planner->findPath();
-                        }
-
                         else if (start_pt_found && path_planner->isRunnning())
                         {
-                            ROS_WARN("REQUESTING RRT");
-//                            flag_holdSpline = true;
+                            ROS_WARN("FOUND TARGET");
+                            flag_holdSpline = true;
+                            finish_pt_found = true;
                             time_stop = current_time+(dt*(i+1));
-                            path_planner->setTargetPoint(point_next);
-                            path_planner->findPath();
+                            path_planner->setTargetPoint(point_next, true);
                         }
 
                     }
@@ -509,42 +492,67 @@ int main(int argc, char** argv){
                 if(start_pt_found && path_planner->isSolved())
                 {
                     ROS_INFO("Getting Data from RRT");
+                    finish_pt_found = false;
+                    hold_counter = 0;
                     std::list<Eigen::Vector3f> path_points = path_planner->getPathPoints();
                     for(Eigen::Vector3f pt: path_points)
                     {
-                        ctrl_points_.push_back(pt.cast<double>());
+                        path_planner->addControlPoint(pt);
                     }
                     start_pt_found = false;
                     flag_holdSpline = false;
                     current_time = time_stop;
                 }
 
+                else if(start_pt_found && !path_planner->isSolved() && path_planner->immidiatePath())
+                {
+                    ROS_INFO("Using Immidiate Path");
+                    hold_counter = 0;
+                    flag_useImmidiate = true;
+                    std::list<Eigen::Vector3f> temp_path_points = path_planner->getImmidiatePath();
+                    pt_hold = temp_path_points.back();
+                    for(Eigen::Vector3f pt: temp_path_points)
+                    {
+                        path_planner->addControlPoint(pt);
+                    }
+
+                    ROS_INFO("Path from Immidiate Ready");
+                    flag_holdSpline = false;
+                }
+
                 // If RRT Not Solved use starting point
-                else if(start_pt_found && !path_planner->isSolved())
+                else if(start_pt_found && !path_planner->isSolved() && !path_planner->immidiatePath())
                 {
                     ROS_INFO("Still Solving RRT");
                     if(current_time < time_start)
                     {
-                        if(std::find(ctrl_points_.begin(), ctrl_points_.end(), ctrl_points_f[0].cast<double>()) == ctrl_points_.end())
+
+                        if(last_point != ctrl_points_f[0])
                         {
+                            hold_counter = 0;
                             ROS_INFO("Using SPline");
-                            ctrl_points_.push_back(ctrl_points_f[0].cast<double>());
+                            path_planner->addControlPoint(ctrl_points_f[0]);
                         }
                     }
                     else {
-                       ctrl_points_.push_back(pt_hold.cast<double>());
+                        if(hold_counter <=5)
+                        {
+                            path_planner->addControlPoint(pt_hold);
+                            hold_counter++;
+                        }
                     }
                     
                 }
 
                 // Using Spline
-                else if(!start_pt_found && !path_planner->isRunnning() /*|| !path_planner->isSolved())*/)
+                else if(!start_pt_found && !path_planner->isRunnning())
                 {
                     if(!ctrl_pts_bool[0])
-                        if(std::find(ctrl_points_.begin(), ctrl_points_.end(), ctrl_points_f[0].cast<double>()) == ctrl_points_.end())
+//                        if(std::find(ctrl_points_.begin(), ctrl_points_.end(), ctrl_points_f[0].cast<double>()) == ctrl_points_.end())
+                        if(last_point != ctrl_points_f[0])
                         {
                             ROS_INFO("Using SPline");
-                            ctrl_points_.push_back(ctrl_points_f[0].cast<double>());
+                            path_planner->addControlPoint(ctrl_points_f[0]);
                         }
                 }
 
@@ -570,7 +578,7 @@ int main(int argc, char** argv){
                 }
 
                 prev_ctrl_pts_bool = ctrl_pts_bool;
-
+                last_point = ctrl_points_f[0];
                 if(!flag_holdSpline)
                     current_time += dt;
             }
@@ -579,60 +587,42 @@ int main(int argc, char** argv){
             traj_checker_pub.publish(ctrl_pts_marker);
         }
 
-//        ROS_WARN("Checking RRT");
-
-        if(path_planner->isSolved())
+        if(path_planner->isSolved() || (path_planner->immidiatePath() && flag_useImmidiate))
         {
-            use_gt = false;
-//            path_points.push_back(path_planner->getPathPoints());
             ROS_WARN("FOUND SOLUTION");
+            flag_useImmidiate = false;
             visualization_msgs::MarkerArray rrt_marker;
             rrt_marker.markers.resize(2);
-            path_planner->getSolutionMarker(rrt_marker.markers[0], "rrt_trajectory_markers", 0, Eigen::Vector3d(0,1,1));
+            ROS_WARN("HERE");
+            path_planner->getSolutionMarker(rrt_marker.markers[0], "rrt_trajectory_markers", 0);
+            ROS_WARN("MIGHT BE HERE");
             path_planner->getTreeMarker(rrt_marker.markers[1], "rrt_trajectory_markers", 1);
-            rrt_planner_pub.publish(rrt_marker);
+            if(rrt_marker.markers[0].points.size() > 0)
+                rrt_planner_pub.publish(rrt_marker);
 
-            path_planner->reset();
+            path_planner->resetImmidiatePath();
+
+            if(path_planner->isSolved())
+                path_planner->reset();
         }
 
-//        ROS_WARN("Generating Path Spline");
-
-        if(current_time > ros::Duration(2).toSec())
+        if(current_time > ros::Duration(5).toSec())
         {
-                spline_.push_back(ctrl_points_.front());
+            visualization_msgs::MarkerArray sol_traj_marker;
+            path_planner->getTrajectoryMarkers(sol_traj_marker);
+
+            current_traj_pub.publish(sol_traj_marker);
+
+            Eigen::Vector3f pc = path_planner->getFirstTrajPoint();
+
+            geometry_msgs::Point pp;
+            pp.x = pc[0];
+            pp.y = pc[1];
+            pp.z = pc[2];
+            trajectory_pub.publish(pp);
+
+            path_planner->addLastControlPoint();
         }
-
-        //        visualization_msgs::MarkerArray traj_marker;
-        traj_marker.markers.resize(2);
-
-        spline_.getVisualizationMarker(traj_marker.markers[0], "spline_opitimization_markers", 0,  Eigen::Vector3d(0,1,0));
-        spline_.getControlPointsMarker(traj_marker.markers[1], "spline_opitimization_markers", 1,  Eigen::Vector3d(0,1,0));
-        ROS_WARN("Published Current Spline");
-
-        current_traj_pub.publish(traj_marker);
-
-
-//        ROS_WARN("Getting Point to Controller");
-
-//        if(updated || (path_planner->isRunnning() || path_planner->isSolved()))
-//        {
-
-            if(!ctrl_points_.empty())
-            {
-                geometry_msgs::Point pp;
-                Eigen::Vector3d point_ = ctrl_points_.front();
-
-//                std::cout << "Publishing Point \n" << point_ << std::endl;
-
-                pp.x = point_.x();
-                pp.y = point_.y();
-                pp.z = point_.z();
-                trajectory_pub.publish(pp);
-
-                if(ctrl_points_.size()>1)
-                    ctrl_points_.pop_front();
-            }
-//        }
 
         ros::spinOnce();
 
