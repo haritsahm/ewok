@@ -43,6 +43,7 @@ class EuclideanDistanceRingBuffer {
   typedef Eigen::Matrix<_Scalar, 3, 1> Vector3;
   typedef Eigen::Matrix<int, 3, 1> Vector3i;
   typedef std::vector <Vector4, Eigen::aligned_allocator<Vector4>> PointCloud;
+  typedef std::pair<Vector3, bool> PointBool;
 
   typedef std::shared_ptr<EuclideanDistanceRingBuffer<_POW, _Datatype, _Scalar, _Flag>> Ptr;
 
@@ -88,12 +89,22 @@ class EuclideanDistanceRingBuffer {
     return occupancy_buffer_.isPointNear(point, radius_);
   }
 
-  std::vector<bool> isNearObstacle(const std::vector<Vector3> & points, const _Scalar & radius_)
+  inline std::vector<bool> isNearObstacle(const std::vector<Vector3> & points, const _Scalar & radius_)
   {
       std::vector<bool> sol;
       for(Vector3 pt:points)
       {
           sol.push_back(occupancy_buffer_.isPointNear(pt, radius_));
+      }
+      return sol;
+  }
+
+  inline std::vector<PointBool> isNearObstacle2(const std::vector<Vector3> & points, const _Scalar & radius_)
+  {
+      std::vector<PointBool> sol;
+      for(Vector3 pt:points)
+      {
+          sol.push_back(std::make_pair(pt, occupancy_buffer_.isPointNear(pt, radius_)));
       }
       return sol;
   }

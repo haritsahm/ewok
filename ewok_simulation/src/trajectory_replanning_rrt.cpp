@@ -67,7 +67,7 @@ std::ofstream f_time, opt_time;
 
 ewok::PolynomialTrajectory3D<10>::Ptr traj;
 ewok::EuclideanDistanceRingBuffer<POW>::Ptr edrb;
-ewok::RRTStar3D<POW>::Ptr path_planner;
+ewok::RRTStar3D<POW, float>::Ptr path_planner;
 
 ros::Publisher rrt_planner_pub, occ_marker_pub, free_marker_pub, dist_marker_pub, trajectory_pub, current_traj_pub, command_pt_pub, command_pt_viz_pub;
 tf::TransformListener * listener;
@@ -304,8 +304,10 @@ int main(int argc, char** argv){
     edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW>(resolution, 1.0));
     ewok::UniformBSpline3D<6> spline_(dt);
 
-    path_planner.reset(new ewok::RRTStar3D<POW>(traj, 0.25, 1.65, 1, 6, dt));
-    path_planner->setDistanceBuffer(edrb);
+    path_planner.reset(new ewok::RRTStar3D<POW, float>(0.25, 1.65, 1, 6, dt));
+    // path_planner->setDistanceBuffer(edrb);
+    // path_planner->setPolynomialTrajectory(traj);
+
 
     for (int i = 0; i < num_opt_points; i++) {
         path_planner->addControlPoint(Eigen::Vector3f(start_x, start_y, start_z));
@@ -614,13 +616,11 @@ int main(int argc, char** argv){
             current_traj_pub.publish(sol_traj_marker);
 
             Eigen::Vector3f pc = path_planner->getFirstTrajPoint();
-
             geometry_msgs::Point pp;
             pp.x = pc[0];
             pp.y = pc[1];
             pp.z = pc[2];
             trajectory_pub.publish(pp);
-
             path_planner->addLastControlPoint();
         }
 

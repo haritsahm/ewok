@@ -17,9 +17,11 @@ catkin_simple()
 cs_add_executable(bspline_lee_position_controller_node src/bspline_lee_position_controller_node.cpp)
 cs_add_executable(trajectory_replanning_example src/trajectory_replanning_example.cpp)
 cs_add_executable(trajectory_replanning_rrt src/trajectory_replanning_rrt.cpp)
+cs_add_executable(trajectory_replanning_rrtv2 src/trajectory_replanning_rrtv2.cpp)
 
 target_link_libraries(trajectory_replanning_example ${CHOLMOD_LIBRARY} nlopt)
 target_link_libraries(trajectory_replanning_rrt ${CHOLMOD_LIBRARY} ${Eigen3_LIBS} nlopt Boost::thread)
+target_link_libraries(trajectory_replanning_rrtv2 ${CHOLMOD_LIBRARY} ${Eigen3_LIBS} nlopt Boost::thread)
 
 cs_install()
 cs_export()

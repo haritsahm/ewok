@@ -50,9 +50,10 @@ BSplineLeePositionControllerNode::BSplineLeePositionControllerNode(
 
   ros::NodeHandle pnh("~");
   pnh.param("dt", dt, 0.5);
+  time_t = 0;
+  time_elapsed = 0;
 
   b_spline_.reset(new ewok::UniformBSpline3D<6, double>(dt));
-
 
   ROS_INFO("Finished BSplineLeePositionControllerNode constructor");
 
@@ -130,15 +131,32 @@ void BSplineLeePositionControllerNode::OdometryCallback(const nav_msgs::Odometry
   if(b_spline_->size() == 0) {
     for(int i=0; i<6; i++) b_spline_->push_back(odometry.position);
     init_time = ros::Time::now();
+    time_t = 0;
+    time_elapsed = 0;
     last_yaw = mav_msgs::yawFromQuaternion(odometry.orientation);
   }
 
   double local_t = (ros::Time::now() - init_time).toSec();
-
+  // std::cout << "Max t : " << b_spline_->maxValidTime() << " | Local t : " << local_t << std::endl;
   if(local_t > b_spline_->maxValidTime()) {
     b_spline_->push_back(b_spline_->getControlPoint(b_spline_->size()-1));
     ROS_WARN("Adding last point once again!");
   }
+
+  // if(time_elapsed > b_spline_->maxValidTime()) {
+  //   b_spline_->push_back(b_spline_->getControlPoint(b_spline_->size()-1));
+  //   ROS_WARN("Adding last point once again!");
+  // }
+
+  // Eigen::Vector3d target_pos = b_spline_->evaluate(time_elapsed, 0);
+  // std::cout << "Target : " << target_pos.transpose() << std::endl;
+  // if (Eigen::Vector3d(target_pos - odometry.position).norm() < 2)
+  // {
+  //   if (time_elapsed < b_spline_->maxValidTime())
+  //   {
+  //     time_elapsed += 0.01;
+  //   }
+  // }
 
   bool yaw_from_traj;
   mav_msgs::EigenTrajectoryPoint command_trajectory;
@@ -150,7 +168,6 @@ void BSplineLeePositionControllerNode::OdometryCallback(const nav_msgs::Odometry
   } else {
     last_yaw = command_trajectory.getYaw();
   }
-
 
   lee_position_controller_.SetTrajectoryPoint(command_trajectory);
 
@@ -180,7 +197,6 @@ void BSplineLeePositionControllerNode::OdometryCallback(const nav_msgs::Odometry
 void BSplineLeePositionControllerNode::getTrajectoryPoint(double t,
       mav_msgs::EigenTrajectoryPoint& command_trajectory, bool & yaw_from_traj) {
 
-
   command_trajectory.position_W = b_spline_->evaluate(t, 0);
   command_trajectory.velocity_W = b_spline_->evaluate(t, 1);
   command_trajectory.acceleration_W = b_spline_->evaluate(t, 2);
@@ -189,7 +205,6 @@ void BSplineLeePositionControllerNode::getTrajectoryPoint(double t,
   static const double delta = 0.02;
 
   Eigen::Vector3d d_t = b_spline_->evaluate(t + eps, 0) - command_trajectory.position_W;
-
   yaw_from_traj = false;
 
   if(std::abs(d_t[0]) > delta || std::abs(d_t[1]) > delta) {
@@ -197,7 +212,6 @@ void BSplineLeePositionControllerNode::getTrajectoryPoint(double t,
     yaw_from_traj = true;
 
     command_trajectory.setFromYaw(yaw);
-
 
     Eigen::Vector3d d_t_e = b_spline_->evaluate(t + 2*eps, 0) - b_spline_->evaluate(t + eps, 0);
 

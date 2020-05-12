@@ -1,0 +1,43 @@
+{
+    "configurations": [
+        {
+            "browse": {
+                "databaseFilename": "",
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "includePath": [
+                "/home/haritsahm/Documents/codes/ewok/devel/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/devel/include/**",
+                "/opt/ros/melodic/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros_controllers/controller_msgs/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/ewok_optimization/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/ewok_poly_spline/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/ewok_ring_buffer/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/ewok_simulation/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros_controllers/geometric_controller/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros/libmavconn/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/mav_comm/mav_msgs/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/mav_comm/mav_planning_msgs/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavlink_sitl_gazebo/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros/mavros/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros/mavros_msgs/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/octomap_rviz_plugins/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/px4_trajectory_replanning/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/realsense-ros/realsense2_camera/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/rotors_simulator/rotors_control/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/rotors_simulator/rotors_gazebo_plugins/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/rotors_simulator/rotors_hil_interface/include/**",
+                "/home/haritsahm/Documents/codes/ewok/src/rotors_simulator/rotors_joy_interface/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros/test_mavros/include/**",
+                "/home/haritsahm/Documents/codes/rgbd_local_map/src/mavros_controllers/trajectory_publisher/include/**",
+                "/usr/include/**"
+            ],
+            "name": "ROS",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

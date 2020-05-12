@@ -62,6 +62,8 @@ class BSplineLeePositionControllerNode {
   ros::NodeHandle nh;
 
   double dt;
+  double time_t;
+  double time_elapsed;
   ewok::UniformBSpline3D<6, double>::Ptr b_spline_;
   ros::Time init_time;
   double last_yaw;
