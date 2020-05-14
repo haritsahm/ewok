@@ -80,6 +80,8 @@ public:
     flag_start_found = flag_stop_found = false;
     traj_point_counter = _N;
     flag_hold_dt = false;
+    flag_force_endpoint = false;
+    flag_real_target = false;
   }
 
   RRTStar3D(_Scalar step_size = 0.5, _Scalar rrt_factor = 1.5, _Scalar radius = 1, _Scalar solve_tmax = 1,
@@ -115,6 +117,9 @@ public:
     traj_point_counter = _N;
     flag_hold_dt = false;
     flag_hold_pos = false;
+    flag_hold_pos_immidiate = false;
+    flag_hold_starting_rrt = false;
+    flag_vizualize_output = false;
   }
 
   void reset()
@@ -665,9 +670,9 @@ public:
     if (current_t < trajectory_->duration())
     {
       std::vector<Vector3> traj_pts = trajectory_->evaluates(current_t, dt_, 4, 0);
-      Vector3 end_segment_point = trajectory_->evaluateEndSegment(current_t, 0);
+      end_segment_point = trajectory_->evaluateEndSegment(current_t, 0);
 
-      if (Vector3(robot_pos - traj_pts[0]).norm() > 2.5)  // checking constrain
+      if (Vector3(robot_pos - traj_pts.front()).norm() > 2.5)  // checking constrain
         flag_hold_dt = true;
       else
         flag_hold_dt = false;
@@ -676,7 +681,8 @@ public:
       {
         std::vector<PointBool> traj_pts_bool = edrb_->isNearObstacle2(traj_pts, 1.2);
 
-        if ((!flag_stop_found && flag_rrt_started))  // End point search
+        if ((!flag_stop_found && flag_rrt_started && flag_start_found) || flag_rrt_immidiate ||
+            (!flag_stop_found && flag_hold_starting_rrt && flag_start_found))  // End point search
         {
           ROS_WARN_COND_NAMED(algorithm_, "Process", "End Point Search");
 
@@ -684,16 +690,40 @@ public:
           {
             PointBool prev_pt = traj_pts_bool[i];
             PointBool next_pt = traj_pts_bool[i + 1];
+            std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - search_t_stamp;
 
             if (std::find(path_checker.begin(), path_checker.end(), prev_pt) == path_checker.end())
             {
               path_checker.push_back(prev_pt);
             }
 
+            if (std::find(path_checker.begin(), path_checker.end(), next_pt) == path_checker.end())
+            {
+              path_checker.push_back(next_pt);
+            }
+
+            // if (flag_rrt_immidiate && elapsed.count() > max_solve_t_)
+            // {
+            //   ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces", "Timeout looking for end point");
+            //   solving_queue.push_back(std::make_pair(immidiate_start_pt, end_segment_point));
+            //   ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+            //                              "Starting:" << curr_start_pt.transpose()
+            //                                          << " Endpoint: " << next_pt.first.transpose());
+            //   obstacle_counter = 0;
+            //   flag_hold_pos_immidiate = false;
+            //   flag_real_target = true;
+            //   flag_force_endpoint = true;
+            //   flag_stop_found = true;
+            //   flag_not_enough = false;
+            //   break;
+            // }
+
             if (prev_pt.second && next_pt.second)
             {
               if (std::find(obs_list.begin(), obs_list.end(), prev_pt.first) == obs_list.end())
                 obs_list.push_back(prev_pt.first);
+              if (std::find(obs_list.begin(), obs_list.end(), next_pt.first) == obs_list.end())
+                obs_list.push_back(next_pt.first);
             }
 
             else if (prev_pt.second && !next_pt.second)
@@ -711,27 +741,58 @@ public:
                 flag_start_found = false;
                 flag_stop_found = false;
                 flag_not_enough = true;
+
+                // for(Vector3 point: obs_list)
+                // {
+                //   if (std::find(traj_points.begin(), traj_points.end(), point) == traj_points.end())
+                //   {
+                //     traj_points.push_back(point);
+                //     spline_.push_back(point);
+                //   }
+                // }
+
                 obs_list.clear();
                 // ignore_list.insert(ignore_list.end(), temp_ignore.begin(), temp_ignore.end());
                 // spline_.insert(ignore_list.end(), temp_ignore.begin(), temp_ignore.end());
                 break;
               }
 
+              else if (flag_rrt_immidiate)
+              {
+                ROS_WARN_COND_NAMED(algorithm_, "Process", "Found Endpoint for new Immidiate Path");
+                solving_queue.push_back(std::make_pair(immidiate_start_pt, next_pt.first));
+                ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+                                           "Starting:" << immidiate_start_pt.transpose()
+                                                       << " Endpoint: " << next_pt.first.transpose());
+                obstacle_counter = 0;
+                curr_start_pt = immidiate_start_pt;
+                flag_hold_pos_immidiate = false;
+                flag_stop_found = true;
+                flag_not_enough = false;
+                flag_real_target = true;
+                break;
+              }
+
               // normal
               else
               {
-                ROS_WARN_COND_NAMED(algorithm_, "Process", "Found Endpoint");
+                ROS_WARN_COND_NAMED(algorithm_, "Process", "Found Normal Endpoint");
                 solving_queue.push_back(std::make_pair(curr_start_pt, next_pt.first));
+                ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+                                           "Starting:" << curr_start_pt.transpose()
+                                                       << " Endpoint: " << next_pt.first.transpose());
                 obstacle_counter = 0;
+                flag_real_target = true;
                 flag_stop_found = true;
                 flag_not_enough = false;
+                reset_dt_ = current_t + dt_ * (i + 1);
                 break;
               }
             }
           }
         }
 
-        else if ((solving_queue.size() == 0 || !flag_rrt_started) && !flag_stop_found)  // found starting point
+        else if (!flag_rrt_started && !flag_stop_found && !flag_hold_starting_rrt)  // found starting point
         {
           ROS_WARN_COND_NAMED(algorithm_, "Process", "Start Point Search");
 
@@ -744,18 +805,31 @@ public:
             {
               traj_points.push_back(prev_pt.first);
               spline_.push_back(prev_pt.first);
+            }
+
+            if (std::find(path_checker.begin(), path_checker.end(), prev_pt) == path_checker.end())
+            {
               path_checker.push_back(prev_pt);
+            }
+
+            if (std::find(path_checker.begin(), path_checker.end(), next_pt) == path_checker.end())
+            {
+              path_checker.push_back(next_pt);
             }
 
             if (!prev_pt.second && next_pt.second)
             {
               ROS_WARN_COND_NAMED(algorithm_, "Process", "Found Start Point");
               solving_queue.push_back(std::make_pair(prev_pt.first, end_segment_point));
+              ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+                                         "Starting:" << prev_pt.first.transpose()
+                                                     << " Endpoint: " << end_segment_point.transpose());
               curr_start_pt = prev_pt.first;
               obs_list.push_back(next_pt.first);
               obstacle_counter = 1;
               flag_start_found = true;
               flag_hold_pos = true;
+              flag_real_target = false;
               search_t_stamp = std::chrono::high_resolution_clock::now();
               break;
             }
@@ -765,65 +839,156 @@ public:
           }
         }
 
+        // Holding position at starting rrt
         if (flag_hold_pos)
         {
           ROS_WARN_COND_NAMED(algorithm_, "Process", "Holding at starting point");
-          traj_points.push_back(curr_start_pt);
-          spline_.push_back(curr_start_pt);
+          double r = ((double)rand() / (RAND_MAX));
+          if (r > 0.6)
+          {
+            traj_points.push_back(curr_start_pt);
+            spline_.push_back(curr_start_pt);
+          }
         }
 
-        if (!flag_hold_dt)
-          current_t += dt_;
+        // Holding position at immidiate path end
+        else if (flag_hold_pos_immidiate)
+        {
+          ROS_WARN_COND_NAMED(algorithm_, "Process", "Holding at Immidiate End point");
+
+          double r = ((double)rand() / (RAND_MAX));
+          if (r > 0.6)
+          {
+            traj_points.push_back(immidiate_start_pt);
+            spline_.push_back(immidiate_start_pt);
+          }
+        }
 
         if (solving_queue.size() != 0 || flag_rrt_started)  // if there is a queue
         {
-          ROS_WARN_COND_NAMED(algorithm_, "Process", "Running Queue");
+          // ROS_WARN_COND_NAMED(algorithm_, "Process", "Running Queue");
+          bool ready_to_start = false;
 
+          // if (Vector3(robot_pos - temp_p.first).norm() > 1)
+          // {
+          //   ROS_WARN_COND_NAMED(algorithm_, "Process", "Waiting until near starting point");
+          //   search_t_stamp = std::chrono::high_resolution_clock::now();
+          //   flag_hold_starting_rrt = true;
+          // }
+
+          if (flag_rrt_started)
           {
-            // start_rrt
-            if (!flag_rrt_started && !flag_rrt_immidiate)
+            if (Vector3(robot_pos - start_).norm() > 1)
             {
-              ROS_WARN_COND_NAMED(algorithm_, "Process", "Running RRT");
-              std::cout << solving_queue.size() << std::endl;
-              PPoint temp_pair = solving_queue.front();
-              if (solving_queue.size() > 0)
-                solving_queue.pop_front();
-              start_ = temp_pair.first;
-              target_ = temp_pair.second;
-              initialize();
-              goal_node->pos_ = target_;
-              tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT, this));
+              search_t_stamp = std::chrono::high_resolution_clock::now();
+              ROS_WARN_COND_NAMED(algorithm_, "Process", "Waiting until near starting point");
+              flag_hold_starting_rrt = true;
+            }
+            else
+            {
+              ROS_WARN_COND_NAMED(algorithm_, "Process", "Able to start RRT");
+              flag_hold_starting_rrt = false;
+            }
+          }
+
+          // start_rrt
+          if (!flag_rrt_started && !flag_rrt_immidiate)
+          {
+            ROS_WARN_COND_NAMED(algorithm_, "Process", "Running RRT");
+            // If end point discovered (not the segment enpoint), need to remove both
+
+            PPoint temp_point = solving_queue.front();
+
+            typename std::list<PPoint>::iterator iter = solving_queue.begin();
+            while (iter != solving_queue.end())
+            {
+              PPoint p = (*iter);
+              if ((Vector3(p.first - temp_point.first).norm() < 1e-06) &&
+                  (Vector3(p.second - temp_point.second).norm() < 1e-06))
+              {
+                solving_queue.erase(iter++);  // alternatively, i = items.erase(i);
+              }
+              if ((Vector3(p.first - temp_point.first).norm() < 1e-06) &&
+                  (Vector3(p.second - temp_point.second).norm() > 1e-06))
+              {
+                temp_point.second = p.second;
+                solving_queue.erase(iter++);
+              }
+              else
+              {
+                ++iter;
+              }
+            }
+            start_ = temp_point.first;
+            target_ = temp_point.second;
+
+            ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+                                       "Starting:" << start_.transpose() << " Endpoint: " << target_.transpose());
+            initialize();
+            goal_node->pos_ = target_;
+            flag_hold_starting_rrt = true;
+            tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT, this));
+            // flag_hold_starting_rrt = false;
+          }
+
+          // request immidiate rrt
+          else if (flag_rrt_immidiate && flag_stop_found && !flag_rrt_started)
+          {
+            ROS_WARN_COND_NAMED(algorithm_, "Process", "Running Immidiate RRT");
+            flag_rrt_immidiate = false;
+            flag_hold_pos = false;
+            PPoint temp_pair = solving_queue.front();
+            if (solving_queue.size() > 0)  // probably need to find based on starting point pair
+              solving_queue.pop_front();
+            start_ = immidiate_start_pt;
+            target_ = temp_pair.second;
+            ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+                                       "Starting:" << start_.transpose() << " Endpoint: " << target_.transpose());
+            initialize();
+            goal_node->pos_ = target_;
+            flag_hold_starting_rrt = true;
+            tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT, this));
+            // flag_hold_starting_rrt = false;
+          }
+
+          // if under n seconds, replace endpoint
+          // else generate and move to point
+          else if (flag_rrt_started && flag_stop_found && !flag_rrt_finished && !flag_rrt_immidiate)
+          {
+            bool flag_same_point = false;
+            // flag_hold_starting_rrt = false;
+
+            // Check if queue point is the same
+            typename std::list<PPoint>::iterator iter = solving_queue.begin();
+            while (iter != solving_queue.end())
+            {
+              PPoint p = (*iter);
+              if (Vector3(p.first - start_).norm() > 1e-06)
+              {
+                solving_queue.erase(iter++);  // alternatively, i = items.erase(i);
+              }
+              if ((Vector3(p.first - start_).norm() < 1e-06) && Vector3(p.second - target_).norm() > 1e-06)
+              {
+                target_ = p.second;
+                solving_queue.erase(iter);
+                flag_same_point = true;
+                break;
+              }
+              else
+              {
+                ++iter;
+              }
             }
 
-            // request immidiate rrt
-            else if (flag_rrt_immidiate && flag_stop_found && !flag_rrt_started)
-            {
-              ROS_WARN_COND_NAMED(algorithm_, "Process", "Running Immidiate RRT");
-              flag_rrt_immidiate = false;
-              PPoint temp_pair = solving_queue.front();
-              if (solving_queue.size() > 0)  // probably need to find based on starting point pair
-                solving_queue.pop_front();
-              start_ = immidiate_start_pt;
-              target_ = temp_pair.second;
-              initialize();
-              goal_node->pos_ = target_;
-              tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT, this));
-            }
-
-            // if under n seconds, replace endpoint
-            // else generate and move to point
-            else if (flag_rrt_started && flag_stop_found && !flag_rrt_finished && !flag_rrt_immidiate)
+            if (flag_same_point)
             {
               std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - search_t_stamp;
               if (elapsed.count() < max_solve_t_)
               {
                 ROS_WARN_COND_NAMED(algorithm_, "Process", "Endpoint Under Time");
-
-                PPoint temp_pair = solving_queue.front();
-                target_ = temp_pair.second;
-                if (solving_queue.size() > 0)
-                  solving_queue.pop_front();
                 goal_node->pos_ = target_;
+                ROS_WARN_STREAM_COND_NAMED(algorithm_, "Process",
+                                           "RRT : " << start_.transpose() << " | " << target_.transpose());
               }
               else
               {
@@ -831,35 +996,69 @@ public:
                 flag_req_immidiate = true;
               }
             }
+            else
+            {
+              ROS_WARN_COND_NAMED(algorithm_, "Process", "Different Point Solution in Queue");
+            }
           }
         }
 
         // generate output
         if (flag_rrt_finished || flag_force_stopped)
         {
-          ROS_WARN_COND_NAMED(algorithm_, "Process", "Generating Output");
-          std::vector<Vector3> path_result_(path_point_.begin(), path_point_.end());
-          for(int i = 0; i < path_result_.size()-1; i++)
+          if (!flag_force_stopped)
           {
-            spline_.push_back(path_result_[i]); traj_points.push_back(path_result_[i]);
+            ROS_WARN_COND_NAMED(algorithm_, "Process", "Generating Output");
+            std::vector<Vector3> path_result_(path_point_.begin(), path_point_.end());
+            for (int i = 0; i < path_result_.size() - 1; i++)
+            {
+              spline_.push_back(path_result_[i]);
+              traj_points.push_back(path_result_[i]);
 
-            Vector3 midPoint = (path_result_[i] + path_result_[i+1])/2;
-            spline_.push_back(midPoint); traj_points.push_back(midPoint);
+              Vector3 midPoint = (path_result_[i] + path_result_[i + 1]) / 2;
+              spline_.push_back(midPoint);
+              traj_points.push_back(midPoint);
+            }
+            // spline_.push_back(path_result_[path_result_.size() - 3]);
+            spline_.push_back(path_result_.back());
+            spline_.push_back(path_result_.back());
+            // traj_points.push_back(path_result_[path_result_.size() - 3]);
+            traj_points.push_back(path_result_.back());
+            traj_points.push_back(path_result_.back());
           }
 
           // pop queue when finished
           delete tra_gene_thread_;
-          reset();
+          // reset();
 
-          if (!flag_rrt_immidiate)
+          if (flag_rrt_immidiate)
+          {
+            ROS_WARN_COND_NAMED(algorithm_, "Process", "Continuing Immidiate Path");
+            // current_t = reset_dt_;
+            flag_hold_pos = false;
+            flag_hold_pos_immidiate = true;
+            search_t_stamp = std::chrono::high_resolution_clock::now();
+            flag_hold_starting_rrt = false;
+            flag_rrt_started = false;
+            flag_rrt_finished = false;
+          }
+          else
+          {
+            ROS_WARN_COND_NAMED(algorithm_, "Process", "Reset Flag");
+            flag_start_found = false;
             flag_stop_found = false;
-          flag_hold_pos = false;
-          flag_rrt_started = false;
-          flag_rrt_finished = false;
-          flag_force_stopped = false;
-
-          // generate path output
+            flag_hold_pos = false;
+            flag_rrt_started = false;
+            flag_rrt_finished = false;
+            flag_vizualize_output = true;
+            flag_force_stopped = false;
+            flag_hold_starting_rrt = false;
+            current_t = reset_dt_;
+          }
         }
+
+        if (!flag_hold_dt)
+          current_t += dt_;
       }
     }
   }
@@ -924,13 +1123,35 @@ public:
     return point;
   }
 
+  void clearRRT()
+  {
+    // flag_rrt_started = false;
+    // flag_rrt_finished = false;
+    flag_vizualize_output = false;
+    reset();
+  }
+
+  bool RRTVisualize()
+  {
+    return flag_vizualize_output;
+  }
+
   void solveRRT()
   {
     flag_rrt_started = true;
     Node* final = NULL;
-    path_point_.clear();
     int counter = 0;
+    bool found = false;
 
+    ROS_WARN_COND_NAMED(algorithm_, "Process", "Waiting until near starting point");
+    int rand_counter = 0;
+    do
+    {
+      rand_counter++;
+    } while (flag_hold_starting_rrt);
+
+    std::chrono::high_resolution_clock::time_point rrt_stamp = std::chrono::high_resolution_clock::now();
+    search_t_stamp = std::chrono::high_resolution_clock::now();
     ROS_INFO_COND_NAMED(algorithm_, "RRT PLANNER", "Starting RRT");
 
     while (counter < 5000)
@@ -975,9 +1196,10 @@ public:
         }
       }
 
-      std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - search_t_stamp;
-      if (elapsed.count() > max_solve_t_ || flag_req_immidiate)
+      std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - rrt_stamp;
+      if (flag_req_immidiate)
       {
+        ROS_WARN_COND_NAMED(algorithm_, "RRT PLANNER", "RRT Generating Immidiate Path");
         // generate immidiate path
         // append to spline
         flag_req_immidiate = false;
@@ -985,24 +1207,25 @@ public:
         break;
       }
 
-      if (isNear(lastNode_->pos_, step_size_ * rrt_factor_))
-      {
-        ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Target Found");
-        final = lastNode_;
-        // found = true;
-        break;
-      }
+      if (flag_real_target)
+        if (isNear(lastNode_->pos_, step_size_ * rrt_factor_))
+        {
+          ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Target Found");
+          final = lastNode_;
+          found = true;
+          break;
+        }
 
       counter++;
     }
 
-    if (flag_gen_immidiate)
+    if (flag_gen_immidiate || !found)
     {
       ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Target Not Found, Get Nearest");
       Node* near = new Node;
       near->pos_ = target_;
       mutex.lock();
-      Node* new_node = getNearestNodeDistance(root_, 2.5);
+      Node* new_node = getNearestNodeDistance(root_, 1);
       final = new_node;
       mutex.unlock();
       ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Found Nearest to Target");
@@ -1010,6 +1233,8 @@ public:
       flag_rrt_immidiate = true;
       flag_gen_immidiate = false;
     }
+
+    path_point_.clear();
 
     if (!flag_force_stopped)
     {
@@ -1198,19 +1423,30 @@ public:
   void getTrajectoryMarkers(visualization_msgs::MarkerArray& traj_marker,
                             const std::string& ns = "spline_opitimization_markers",
                             const Eigen::Vector3d& color1 = Eigen::Vector3d(0, 1, 0),
-                            const Eigen::Vector3d& color2 = Eigen::Vector3d(0, 1, 1))
+                            const Eigen::Vector3d& color2 = Eigen::Vector3d(0, 1, 1), const bool v2 = false)
   {
     traj_marker.markers.resize(2);
-
-    spline_.getVisualizationMarker(traj_marker.markers[0], ns, 0, color1, cp_opt_start_idx, num_cp_opt, color2);
-    spline_.getControlPointsMarker(traj_marker.markers[1], ns, 1, color1, cp_opt_start_idx, num_cp_opt, color2);
+    if (v2)
+    {
+      spline_.getVisualizationMarker(traj_marker.markers[0], ns, 0, color1, traj_point_counter, 2, color2);
+      spline_.getControlPointsMarker(traj_marker.markers[1], ns, 1, color1, traj_point_counter, 2, color2);
+    }
+    else
+    {
+      spline_.getVisualizationMarker(traj_marker.markers[0], ns, 0, color1, cp_opt_start_idx, 2, color2);
+      spline_.getControlPointsMarker(traj_marker.markers[1], ns, 1, color1, cp_opt_start_idx, 2, color2);
+    }
   }
 
   void getTreeMarker(visualization_msgs::Marker& traj_marker, const std::string& ns, int id = 0,
                      const Eigen::Vector3f& color = Eigen::Vector3f(1, 1, 0), double scale = 0.01)
   {
     if (edges_.empty())
+    {
+      ROS_WARN("EMPTIED");
       return;
+    }
+
     traj_marker.header.frame_id = "world";
     traj_marker.ns = ns;
     traj_marker.id = id;
@@ -1263,7 +1499,10 @@ public:
                          const Eigen::Vector3f& color = Eigen::Vector3f(0, 1, 0), double scale = 0.01)
   {
     if (path_point_.empty())
+    {
+      ROS_WARN("EMPTIED");
       return;
+    }
 
     traj_marker.header.frame_id = "world";
     traj_marker.ns = ns;
@@ -1327,6 +1566,7 @@ protected:
   Vector3 curr_start_pt, immidiate_start_pt;
   bool flag_rrt_started, flag_rrt_finished;
   bool flag_req_immidiate, flag_gen_immidiate, flag_rrt_immidiate;
+  bool flag_hold_pos_immidiate, flag_hold_starting_rrt;
   bool flag_not_enough, flag_force_stopped;
   bool flag_hold_dt;
   _Scalar current_t;
@@ -1334,7 +1574,10 @@ protected:
   bool flag_hold_pos;
   bool algorithm_;
   int obstacle_counter, traj_point_counter;
-  _Scalar dt_;
+  bool flag_vizualize_output;
+  Vector3 end_segment_point;
+  bool flag_force_endpoint, flag_real_target;
+  _Scalar dt_, reset_dt_;
   std::chrono::high_resolution_clock::time_point search_t_stamp;
 
   std::chrono::high_resolution_clock::time_point start_solving, end_solving;

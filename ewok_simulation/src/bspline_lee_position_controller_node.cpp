@@ -217,7 +217,7 @@ void BSplineLeePositionControllerNode::getTrajectoryPoint(double t,
 
     if(std::abs(d_t_e[0]) > delta || std::abs(d_t_e[1]) > delta) {
       double yaw_e = std::atan2(d_t_e[1], d_t_e[0]);
-      double yaw_rate = (yaw_e - yaw) / eps;
+      double yaw_rate = (yaw_e - yaw) / (2*eps);
       command_trajectory.setFromYawRate(yaw_rate);
     } else {
       command_trajectory.setFromYawRate(0);

@@ -59,6 +59,7 @@ double dt;
 int num_opt_points;
 
 bool initialized = false;
+bool main_debug = false;
 
 std::ofstream f_time, opt_time;
 
@@ -275,7 +276,7 @@ int main(int argc, char** argv)
   edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW, int16_t, double>(resolution, 1.0));
   // ewok::UniformBSpline3D<6, double> spline_(dt);
 
-  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.65, 1, 6, dt));
+  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.65, 0.8, 10, dt));
   path_planner->setDistanceBuffer(edrb);
   path_planner->setPolynomialTrajectory(traj);
 
@@ -336,7 +337,7 @@ int main(int argc, char** argv)
 
   ros::Duration(5.0).sleep();
 
-  ros::Rate r(1/dt);
+  ros::Rate r(1 / dt);
   ros::Time starting = ros::Time::now();
   while (ros::ok())
   {
@@ -354,39 +355,46 @@ int main(int argc, char** argv)
     }
 
     // Update robot position
-    ROS_INFO("Update Robot Pose");
+    ROS_INFO_COND(main_debug, "Update Robot Pose");
     Eigen::Affine3d base_link;
     tf::transformTFToEigen(transform, base_link);
     path_planner->setRobotPos(base_link.translation());
 
     // process rrt
-    ROS_INFO("Process Trajectory - RRT");
+    ROS_INFO_COND(main_debug, "Process Trajectory - RRT");
     path_planner->process();
 
     // get trajectory checker
-    ROS_INFO("Publish Trajectory Checker");
+    ROS_INFO_COND(main_debug, "Publish Trajectory Checker");
     path_planner->TrajectoryChecker(trajectory_checker);
     traj_checker_pub.publish(trajectory_checker);
 
     // Publish Path Visualizer
     {
-      ROS_INFO("Publish RRT Visualizer");
-      visualization_msgs::MarkerArray rrt_marker;
-      rrt_marker.markers.resize(2);
-      path_planner->getSolutionMarker(rrt_marker.markers[0], "rrt_trajectory_markers", 0);
-      path_planner->getTreeMarker(rrt_marker.markers[1], "rrt_trajectory_markers", 1);
-      if (rrt_marker.markers[0].points.size() > 0)
-        rrt_planner_pub.publish(rrt_marker);
+      if (path_planner->RRTVisualize())
+      {
+        ROS_INFO_COND(main_debug, "Publish RRT Visualizer");
+        visualization_msgs::MarkerArray rrt_marker;
+        rrt_marker.markers.resize(2);
+        path_planner->getSolutionMarker(rrt_marker.markers[0], "rrt_trajectory_markers", 0);
+        path_planner->getTreeMarker(rrt_marker.markers[1], "rrt_trajectory_markers", 1);
+        if (rrt_marker.markers[0].points.size() > 0)
+          rrt_planner_pub.publish(rrt_marker);
+
+        path_planner->clearRRT();
+      }
     }
+
     // Publish Command Point
     if ((ros::Time::now() - starting).toSec() > ros::Duration(5).toSec())
     {
-      ROS_INFO("Publish Path Visualizer");
+      ROS_INFO_COND(main_debug, "Publish Path Visualizer");
       visualization_msgs::MarkerArray sol_traj_marker;
-      path_planner->getTrajectoryMarkers(sol_traj_marker);
+      path_planner->getTrajectoryMarkers(sol_traj_marker, "spline_opitimization_markers", Eigen::Vector3d(0, 1, 0),
+                                          Eigen::Vector3d(0, 1, 1), true);
       current_traj_pub.publish(sol_traj_marker);
 
-      ROS_INFO("Publish Command");
+      ROS_INFO_COND(main_debug, "Publish Command");
       Eigen::Vector3d pc = path_planner->getNextPt();
       geometry_msgs::Point pp;
       pp.x = pc.x();
