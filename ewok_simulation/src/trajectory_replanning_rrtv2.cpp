@@ -276,7 +276,7 @@ int main(int argc, char** argv)
   edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW, int16_t, double>(resolution, 1.0));
   // ewok::UniformBSpline3D<6, double> spline_(dt);
 
-  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.65, 0.8, 10, dt));
+  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.65, 0.6, 10, dt));
   path_planner->setDistanceBuffer(edrb);
   path_planner->setPolynomialTrajectory(traj);
 
@@ -359,6 +359,7 @@ int main(int argc, char** argv)
     Eigen::Affine3d base_link;
     tf::transformTFToEigen(transform, base_link);
     path_planner->setRobotPos(base_link.translation());
+    path_planner->setRobotPose(base_link);
 
     // process rrt
     ROS_INFO_COND(main_debug, "Process Trajectory - RRT");

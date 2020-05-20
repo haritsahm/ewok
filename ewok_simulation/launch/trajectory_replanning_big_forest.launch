@@ -5,6 +5,7 @@
   <arg name="enable_ground_truth" default="true" />
   <arg name="log_file" default="$(arg mav_name)" />
   <arg name="paused" value="true"/>
+  <arg name="new_rrt" default="false"/>
 
   <arg name="start_x" value="-35.0"/>
   <arg name="start_y" value="35.0"/>
@@ -21,6 +22,10 @@
   <arg name="stop_z" value="0.5"/>
   <arg name="stop_yaw" value="$(eval -pi/4)"/>
 
+  <arg name="dt" value="0.5" />
+  <arg name="num_opt_points" value="7" />
+
+
   <env name="GAZEBO_MODEL_PATH" value="$(find rotors_gazebo)/models"/>
   <env name="GAZEBO_RESOURCE_PATH" value="$(find forest_gen)"/>
 
@@ -31,7 +36,7 @@
     <!-- <arg name="gui" value="false"/> -->
     <arg name="verbose" default="false"/>
     <arg name="headless" default="true"/>
-    <arg name="gui" default="false"/>
+    <arg name="gui" default="true"/>
   </include>
 
   <group ns="$(arg mav_name)">
@@ -50,28 +55,52 @@
       <remap from="odometry" to="odometry_sensor1/odometry" />
     </node>
 
-    <node name="trajectory_replanning_example" pkg="ewok_simulation" type="trajectory_replanning_example" output="screen">
+    <group unless="$(arg new_rrt)">
+      <node name="trajectory_replanning_example" pkg="ewok_simulation" type="trajectory_replanning_rrt" output="screen">
 
-      <param name="max_velocity" value="1.5" />
-      <param name="max_acceleration" value="4.0" />
+        <param name="dt" value="$(arg dt)" />
+        <param name="num_opt_points" value="$(arg num_opt_points)" />
 
-      <param name="distance_threshold" value="0.4" />
+        <param name="start_x" value="$(arg start_x)" />
+        <param name="start_y" value="$(arg start_y)" />
+        <param name="start_z" value="$(arg start_z)" />
+        <param name="start_yaw" value="$(arg start_yaw)" />
 
-      <param name="start_x" value="$(arg start_x)" />
-      <param name="start_y" value="$(arg start_y)" />
-      <param name="start_z" value="$(arg start_z)" />
-      <param name="start_yaw" value="$(arg start_yaw)" />
+        <param name="middle_x" value="$(arg middle_x)" />
+        <param name="middle_y" value="$(arg middle_y)" />
+        <param name="middle_z" value="$(arg middle_z)" />
+        <param name="middle_yaw" value="$(arg middle_yaw)" />
 
-      <param name="middle_x" value="$(arg middle_x)" />
-      <param name="middle_y" value="$(arg middle_y)" />
-      <param name="middle_z" value="$(arg middle_z)" />
-      <param name="middle_yaw" value="$(arg middle_yaw)" />
+        <param name="stop_x" value="$(arg stop_x)" />
+        <param name="stop_y" value="$(arg stop_y)" />
+        <param name="stop_z" value="$(arg stop_z)" />
+        <param name="stop_yaw" value="$(arg stop_yaw)" />
+      </node>
 
-      <param name="stop_x" value="$(arg stop_x)" />
-      <param name="stop_y" value="$(arg stop_y)" />
-      <param name="stop_z" value="$(arg stop_z)" />
-      <param name="stop_yaw" value="$(arg stop_yaw)" />
-    </node>
+    </group>
+
+    <group if="$(arg new_rrt)">
+      <node name="trajectory_replanning_rrtv2" pkg="ewok_simulation" type="trajectory_replanning_rrtv2" output="screen">
+
+        <param name="dt" value="$(arg dt)" />
+        <param name="num_opt_points" value="$(arg num_opt_points)" />
+
+        <param name="start_x" value="$(arg start_x)" />
+        <param name="start_y" value="$(arg start_y)" />
+        <param name="start_z" value="$(arg start_z)" />
+        <param name="start_yaw" value="$(arg start_yaw)" />
+
+        <param name="middle_x" value="$(arg middle_x)" />
+        <param name="middle_y" value="$(arg middle_y)" />
+        <param name="middle_z" value="$(arg middle_z)" />
+        <param name="middle_yaw" value="$(arg middle_yaw)" />
+
+        <param name="stop_x" value="$(arg stop_x)" />
+        <param name="stop_y" value="$(arg stop_y)" />
+        <param name="stop_z" value="$(arg stop_z)" />
+        <param name="stop_yaw" value="$(arg stop_yaw)" />
+      </node>
+    </group>
 
 
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
