@@ -140,6 +140,7 @@ void BSplineLeePositionControllerNode::OdometryCallback(const nav_msgs::Odometry
   // std::cout << "Max t : " << b_spline_->maxValidTime() << " | Local t : " << local_t << std::endl;
   if(local_t > b_spline_->maxValidTime()) {
     b_spline_->push_back(b_spline_->getControlPoint(b_spline_->size()-1));
+    local_t = b_spline_->maxValidTime();
     ROS_WARN("Adding last point once again!");
   }
 

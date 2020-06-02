@@ -53,8 +53,7 @@
       <remap from="odometry" to="odometry_sensor1/odometry" />
     </node>
 
-    <group unless="$(arg new_rrt)">
-      <node name="trajectory_replanning_example" pkg="ewok_simulation" type="trajectory_replanning_rrt" output="screen">
+    <node name="trajectory_replanning_rrt" pkg="ewok_simulation" type="trajectory_replanning_rrt" output="screen">
 
         <param name="dt" value="$(arg dt)" />
         <param name="num_opt_points" value="$(arg num_opt_points)" />
@@ -73,33 +72,9 @@
         <param name="stop_y" value="$(arg stop_y)" />
         <param name="stop_z" value="$(arg stop_z)" />
         <param name="stop_yaw" value="$(arg stop_yaw)" />
+        <remap from="odometry" to="odometry_sensor1/odometry" />
+
       </node>
-
-    </group>
-
-    <group if="$(arg new_rrt)">
-      <node name="trajectory_replanning_rrtv2" pkg="ewok_simulation" type="trajectory_replanning_rrtv2" output="screen">
-
-        <param name="dt" value="$(arg dt)" />
-        <param name="num_opt_points" value="$(arg num_opt_points)" />
-
-        <param name="start_x" value="$(arg start_x)" />
-        <param name="start_y" value="$(arg start_y)" />
-        <param name="start_z" value="$(arg start_z)" />
-        <param name="start_yaw" value="$(arg start_yaw)" />
-
-        <param name="middle_x" value="$(arg middle_x)" />
-        <param name="middle_y" value="$(arg middle_y)" />
-        <param name="middle_z" value="$(arg middle_z)" />
-        <param name="middle_yaw" value="$(arg middle_yaw)" />
-
-        <param name="stop_x" value="$(arg stop_x)" />
-        <param name="stop_y" value="$(arg stop_y)" />
-        <param name="stop_z" value="$(arg stop_z)" />
-        <param name="stop_yaw" value="$(arg stop_yaw)" />
-      </node>
-    </group>
-
 
 
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
