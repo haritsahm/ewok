@@ -1161,7 +1161,7 @@ public:
                   sub_root->children_.push_back(close_node);
                   std::cout << "Cleared solution queue" << std::endl;
                   final = possible_solution;
-                  while (final != root_)
+                  while (final != NULL)
                   {
                     Vector3 pos = final->pos_;
                     path_point_.push_front(pos);

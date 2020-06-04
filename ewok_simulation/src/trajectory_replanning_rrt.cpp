@@ -178,6 +178,7 @@ void depthImageCallback(const sensor_msgs::Image::ConstPtr& msg)
   edrb->insertPointCloud(cloud1, origin);
 
   visualization_msgs::Marker m_occ, m_free;
+  m_occ.lifetime = ros::Duration(0);
   edrb->getMarkerOccupied(m_occ);
   edrb->getMarkerFree(m_free);
 
@@ -250,7 +251,6 @@ void RRTProcess(const ros::TimerEvent& event)
     if(path_planner->getNextPt(pc))
     {
       ROS_INFO_COND(main_debug, "Publish Command");
-
       geometry_msgs::Point pp;
       pp.x = pc.x();
       pp.y = pc.y();
@@ -347,6 +347,7 @@ int main(int argc, char** argv)
     traj = to.computeTrajectory(vec);
 
     visualization_msgs::MarkerArray traj_marker;
+
     traj->getVisualizationMarkerArray(traj_marker, "gt", Eigen::Vector3d(1, 0, 1));
     traj_marker_pub.publish(traj_marker);
   }
