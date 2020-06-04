@@ -99,7 +99,7 @@ Visualization Manager:
       Marker Topic: /firefly/global_trajectory
       Name: MarkerArray
       Namespaces:
-        {}
+        gt: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -272,7 +272,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 5.173360824584961
+      Distance: 25.886348724365234
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -287,10 +287,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.4397964477539062
+      Pitch: 1.5697963237762451
       Target Frame: firefly/base_link
       Value: Orbit (rviz)
-      Yaw: 4.5345258712768555
+      Yaw: 6.0376996994018555
     Saved: ~
 Window Geometry:
   Displays:
