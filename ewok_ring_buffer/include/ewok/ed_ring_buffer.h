@@ -143,6 +143,11 @@ class EuclideanDistanceRingBuffer {
     compute_edt3d();
   }
 
+  void getMapInfo(_Scalar &free_space)
+  {
+    occupancy_buffer_.getMapInfo(free_space);
+  }
+
   void insertPointCloud(const PointCloud &cloud, const Vector3 &origin) {
     occupancy_buffer_.insertPointCloud(cloud, origin);
   }

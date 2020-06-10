@@ -215,6 +215,29 @@ class RaycastRingBuffer {
     }
   }
 
+  void getMapInfo(_Scalar &free_space)
+  {
+      _Scalar obs_counter = 0;
+      Vector3i offset_;
+      _Scalar cube_volume = pow(resolution_,3);
+
+      occupancy_buffer_.getOffset(offset_);
+
+      for (int x = 0; x < _N; x++) {
+          for (int y = 0; y < _N; y++) {
+              for (int z = 0; z < _N; z++) {
+
+                  Vector3i coord(x, y, z);
+                  coord += offset_;
+
+                  if (isOccupied(coord)) obs_counter++;
+              }
+          }
+      }
+
+      free_space = ((_N*_N*_N)*cube_volume) - (obs_counter*cube_volume);
+
+  }
   virtual void setOffset(const Vector3i &off) {
     occupancy_buffer_.setOffset(off);
     flag_buffer_.setOffset(off);

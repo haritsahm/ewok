@@ -21,6 +21,7 @@
 #include <queue>
 #include <random>
 #include <vector>
+#include <fstream>
 #include <std_msgs/ColorRGBA.h>
 
 namespace ewok
@@ -66,6 +67,7 @@ public:
     , flag_sol_found(false)
     , flag_rrt_running(false)
     , algorithm_(false)
+    , rng{std::random_device{}()}
   {
 
     current_t = 0;
@@ -80,6 +82,7 @@ public:
     flag_rewire_root = false;
     flag_temp_inserted = false;
     flag_new_path_selected = false;
+    rrt_counter=0;
   }
 
   void reset()
@@ -145,6 +148,15 @@ public:
     sub_root = root_;
 
     goal_node = new Node;
+  }
+
+  void setLogPath(const std::string& path, bool save_log=false)
+  {
+    log_path_ = path;
+    flag_save_log_ = save_log;
+    rrt_writer.open(log_path_+std::string("-rrt.csv"), std::ios::out | std::ios::app);
+    ellipsoid_writer.open(log_path_+std::string("-ellips.csv"), std::ios::out | std::ios::app);
+
   }
 
   void setRobotPos(const Vector3& pos)
@@ -345,8 +357,6 @@ public:
 
   _Scalar getRandomNumber(_Scalar a, _Scalar b)
   {
-    std::random_device rseed;
-    std::mt19937 rng(rseed());
     std::uniform_real_distribution<_Scalar> dist(a, b);
     _Scalar num = dist(rng);
 
@@ -465,7 +475,8 @@ public:
 
   Vector3 EllipsoidSampling(_Scalar c_max)
   {
-    Vector3 point_min, point_max;
+      // Ellips Log Format : time_stamp, Vector3 starting, Vector3 target, double c_best, double c_min, r1(cmax/2), r_2
+      Vector3 point_min, point_max;
     Vector3i point_idx;
     edrb_->getVolumeMinMax(point_min, point_max);
     Vector3 pos;
@@ -494,6 +505,10 @@ public:
       Vector3 x_ball = BallSampling();
       pos = C_rotation * L * x_ball + x_center;
 
+      if(flag_save_log_)
+//        ellipsoid_writer<<rrt_stamp<<delim<<rrt_counter<<delim<<start_.transpose()<<delim<<target_.transpose()<<delim<<flag_real_target<<delim<<c_max<<delim<<c_min<<delim<<r_2<<"\n";
+
+
 
       if (flat_height)
         pos.z() = height_.z();
@@ -507,6 +522,7 @@ public:
     {
       pos = UniformSampling();
     }
+
 
     return pos;
   }
@@ -714,15 +730,12 @@ public:
 
       else if(!flag_rrt_running && flag_rrt_finished)
       {
-        ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces RRT 2", "RRT FINISHED");
-        std::cout << "RRT FINISHED START DELETING" << std::endl;
-        //        if (std::find(traj_points.begin(), traj_points.end(), sub_root->pos_) == traj_points.end())
-        //        {
+        ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces RRT", "RRT FINISHED");
+
         Vector3 last_point = traj_points[traj_points.size()-1];
         Vector3 mid_point = (last_point + target_)/2;
         traj_points.push_back(mid_point); traj_points.push_back(target_);
         spline_.push_back(mid_point); spline_.push_back(target_);
-        //        }
         flag_rewire_root = false;
         flag_rrt_finished = false;
         flag_stop_found = false;
@@ -854,8 +867,8 @@ public:
                                          "Proces RRT 2 Starting:" << start_.transpose() << " Endpoint: " << target_.transpose());
 
               std::cout << "Create Thread " << std::endl;
+              rrt_counter++;
               tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT, this));
-
               for(int i=0; i < 5; i++)
               {
                 traj_points.push_back(start_);
@@ -884,27 +897,34 @@ public:
     flag_rrt_finished = false;
     Node* final = NULL;
     solution_node = new Node;
-    int counter = 0;
+    int iteration = 0;
+    _Scalar search_radius;
     bool found = false;
     flag_sol_found = false;
     path_point_.clear();
+    _Scalar free_space;
 
     time_stamped = true;
-    std::chrono::high_resolution_clock::time_point rrt_stamp = std::chrono::high_resolution_clock::now();
     search_t_stamp = std::chrono::high_resolution_clock::now();
+    // RRT Log Format : time_stamp, int rrt_counter, int rrt_iteration, Vector3 starting, Vector3 target, bool real_target, double free space, int node_size, double best_cost
+    // Ellips Log Format : time_stamp, Vector3 starting, Vector3 target, int node_size, double c_best, double c_min, r1(cmax/2), r_2
+
     ROS_INFO_COND_NAMED(algorithm_, "RRT PLANNER", "Starting RRT");
     best_cost_ = std::numeric_limits<_Scalar>::infinity();
-    int counter_limit = 100;
     while (Vector3(sub_root->pos_ - goal_node->pos_).norm() > 2*step_size_ ||
            ( Vector3(robot_pose_.translation() - goal_node->pos_).norm() > 2*step_size_))
     {
+        if(flag_save_log_)
+        {
+//            rrt_stamp = std::chrono::high_resolution_clock::now();
+//            rrt_writer<<rrt_stamp<<delim<<rrt_counter<<delim<<iteration<<delim<<start_.transpose()<<delim<<target_.transpose()<<delim<<flag_real_target<<delim<<free_space<<delim<<search_radius<<delim<<nodes_.size()<<delim<<best_cost_<<"\n";
+        }
+
       auto it_sol=find(solution_queue.begin(),solution_queue.end(),sub_root);
       int sol_pos = it_sol - solution_queue.begin();
 
-      if(Vector3(sub_root->pos_ - target_).norm() < step_size_*rrt_factor_ && !isCollision(sub_root, goal_node))
-        break;
-
-      else if(Vector3(sub_root->pos_ - target_).norm() < step_size_*2 && sol_pos > solution_queue.size()-3 && !isCollision(sub_root, goal_node)) break;
+      if((Vector3(robot_pos - target_).norm() < step_size_*2 || Vector3(sub_root->pos_ - target_).norm() < step_size_*2) &&
+              sol_pos > solution_queue.size()-3 && !isCollision(sub_root, goal_node)) break;
 
 
       // Too Short
@@ -917,7 +937,7 @@ public:
         break;
       }
 
-      // cusing invalid pointer
+      // rewire path solution if needed
       if(flag_rewire_root && found && solution_queue.size()>0)
       {
         bool replaced = false;
@@ -926,19 +946,8 @@ public:
 
           if(solution_queue[i]==sub_root)
           {
-            //            solution_queue[i+1]->children_.push_back(root_);
-            //            solution_queue[i+1]->parent_ = NULL;
-            //            solution_queue[i+1]->cost_ = 0;
-
-            //            root_->parent_ = solution_queue[i+1];
-            //            root_->cost_ = getDistCost(solution_queue[i+1], root_);
-            //            root_ = solution_queue[i+1];
             sub_root = solution_queue[i+1];
-            //            sub_root->cost_ = 0;
-            //            sub_root->pos_ = solution_queue[i+1]->pos_;
             replaced = true;
-
-            //            setStartPoint(sub_root->pos_);
             setTargetPoint(target_);
             break;
           }
@@ -958,8 +967,6 @@ public:
           }
           flag_new_path_selected = true;
           sub_root = nearest_node;
-          //          sub_root->cost_ = 0;
-          //          setStartPoint(sub_root->pos_);
           setTargetPoint(target_);
         }
 
@@ -988,10 +995,11 @@ public:
           std::vector<Node*> near_nodes;
           ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Get Nearest Nodes");
 
-          //           _Scalar radius = std::min(rrt_gamma_*pow(log(nodes_.size()+1)/nodes_.size()+1, 1/2),
-          //           step_size_*rrt_factor_);
-          _Scalar radius = step_size_ * rrt_factor_;
-          getNearestNodes(new_node, radius, near_nodes);
+          edrb_->getMapInfo(free_space);
+          rrt_gamma_ = 2*pow((1+1/3),1/3)*pow(free_space/4.189,1/3);
+          search_radius = std::min(rrt_gamma_*pow(log(nodes_.size()+1)/nodes_.size()+1, 1/3),
+                                    step_size_*rrt_factor_);
+          getNearestNodes(new_node, search_radius, near_nodes);
 
           ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Find Parent");
 
@@ -1022,16 +1030,8 @@ public:
               Node* n_parent = x_near->parent_;
               n_parent->children_.erase(std::remove(n_parent->children_.begin(), n_parent->children_.end(), x_near),
                                         n_parent->children_.end());
-
-              //              auto it_child = std::find(n_parent->children_.begin(), n_parent->children_.end(), x_near);
-              //                  if (it_child != n_parent->children_.end()) { n_parent->children_.erase(it_child); }
-
-              edges_.erase(
-                    std::remove(edges_.begin(), edges_.end(), std::make_tuple(n_parent->pos_, x_near->pos_, false)),
+              edges_.erase(std::remove(edges_.begin(), edges_.end(), std::make_tuple(n_parent->pos_, x_near->pos_, false)),
                     edges_.end());
-
-              //                  auto it_edge = std::find(edges_.begin(), edges_.end(), std::make_tuple(n_parent->pos_, x_near->pos_, false));
-              //                      if (it_edge != edges_.end()) { edges_.erase(it_edge); }
 
               x_near->cost_ = getCost(new_node) + getDistCost(new_node, x_near);
               x_near->parent_ = new_node;
@@ -1061,7 +1061,7 @@ public:
 
       //generate solution in time
       std::chrono::duration<double> t_elapsed = std::chrono::high_resolution_clock::now() - search_t_stamp;
-      if(t_elapsed.count() > max_solve_t_ || Vector3(robot_pose_.translation() - sub_root->pos_).norm() < 2*step_size_)
+      if(t_elapsed.count() > max_solve_t_ /*|| Vector3(robot_pose_.translation() - sub_root->pos_).norm() < 2*step_size_*/)
       {
         if(found)
         {
@@ -1148,75 +1148,26 @@ public:
 
                 }
 
-                solution_queue.erase(solution_queue.begin(), solution_queue.end());
-                solution_queue.clear();
-                std::cout << "No nearest path to sub_root" << std::endl;
-                std::cout << "Cleared solution queue" << std::endl;
-                solution_queue = temp_solution;
-                final = possible_solution;
-                //                sub_root = close_node;
-                while (final != NULL)
+                if(close_path)
                 {
-                  Vector3 pos = final->pos_;
-                  path_point_.push_front(pos);
-                  final = final->parent_;
+                    solution_queue.erase(solution_queue.begin(), solution_queue.end());
+                    solution_queue.clear();
+                    std::cout << "No nearest path to sub_root" << std::endl;
+                    std::cout << "Cleared solution queue" << std::endl;
+                    solution_queue = temp_solution;
+                    final = possible_solution;
+                    //                sub_root = close_node;
+                    while (final != NULL)
+                    {
+                        Vector3 pos = final->pos_;
+                        path_point_.push_front(pos);
+                        final = final->parent_;
+                    }
+                    path_point_.push_back(target_);
+                    std::cout << "Found new Solution" << std::endl;
                 }
-                path_point_.push_back(target_);
-                std::cout << "Found new Solution" << std::endl;
               }
 
-              //                if(close_path)
-              //                {
-              //                  std::cout << "Found new Path from nearest sub_root" << std::endl;
-              ////                  close_node->parent_ = sub_root;
-              ////                  close_node->cost_ = getCost(sub_root) + distance(sub_root->pos_, close_node->pos_);
-              ////                  sub_root->children_.push_back(close_node);
-              //                  auto it_temp=find(temp_solution.begin(),temp_solution.end(), close_node);
-              //                  int temp_pos = it_temp - temp_solution.begin();
-              //                  solution_queue.erase(solution_queue.begin()+sol_pos,solution_queue.end());
-              //                  solution_queue.insert(solution_queue.end(), temp_solution.begin()+temp_pos, temp_solution.end());
-
-              ////                  solution_queue.erase(solution_queue.begin(), solution_queue.end());
-              ////                  solution_queue.clear();
-              //                  close_node->parent_ = sub_root;
-              //                  close_node->cost_ = getCost(sub_root) + distance(sub_root->pos_, close_node->pos_);
-              //                  sub_root->children_.push_back(close_node);
-              //                  std::cout << "Cleared solution queue" << std::endl;
-              //                  std::cout << "root : " << root_->pos_.transpose() << " | goal : " << target_.transpose() << " | subroot : " << sub_root->pos_.transpose() << std::endl;
-              //                  std::cout << "solution queue" << std::endl;
-              //                  for(auto node:solution_queue)
-              //                  {
-              //                    std::cout << "Node : " << node->pos_.transpose() << " | Parent: " << node->parent_->pos_.transpose() << std::endl;
-              //                  }
-              //                  final = solution_queue.back();
-              //                  while (final != NULL)
-              //                  {
-              //                    Vector3 pos = final->pos_;
-              //                    path_point_.push_front(pos);
-              ////                    solution_queue.insert(solution_queue.begin(), final);
-              //                    final = final->parent_;
-              //                  }
-              //                  path_point_.push_back(target_);
-              //                  std::cout << "Found new Solution" << std::endl;
-              //                }
-              //                else
-              //                {
-              //                  solution_queue.erase(solution_queue.begin(), solution_queue.end());
-              //                  solution_queue.clear();
-              //                  std::cout << "No nearest path to sub_root" << std::endl;
-              //                  std::cout << "Cleared solution queue" << std::endl;
-              //                  final = possible_solution;
-              //                  while (final != NULL)
-              //                  {
-              //                    Vector3 pos = final->pos_;
-              //                    path_point_.push_front(pos);
-              //                    solution_queue.insert(solution_queue.begin(), final);
-              //                    final = final->parent_;
-              //                  }
-              //                  path_point_.push_back(target_);
-              //                  std::cout << "Found new Solution" << std::endl;
-              //                }
-              //              }
             }
 
             path_point_.clear();
@@ -1233,8 +1184,7 @@ public:
         else {
           std::cout << "Find Temporary Solution" << std::endl;
           temp_solution = new Node;
-          temp_solution = getNearestNodeDistance(sub_root, 2);
-          std::cout << "add Temporary to Solution" << std::endl;
+          temp_solution = findSolutionNode();
 
           if (std::find(x_sol_.begin(), x_sol_.end(), temp_solution) == x_sol_.end())
           {
@@ -1246,9 +1196,11 @@ public:
         }
 
         flag_vizualize_output = true;
-        search_t_stamp = std::chrono::high_resolution_clock::now();
+//        search_t_stamp = std::chrono::high_resolution_clock::now();
 
       }
+
+      iteration++;
 
     }
     std::cout << "RRT FINISHED" << std::endl;
@@ -1549,9 +1501,14 @@ protected:
   Node* sub_root;
   Node* last_solution;
   bool flag_new_path_selected;
-
+  std::mt19937 rng;
+  std::string log_path_;
+  std::fstream rrt_writer, ellipsoid_writer;
+  bool flag_save_log_;
+  int rrt_counter;
   bool time_stamped;
-  std::chrono::high_resolution_clock::time_point search_t_stamp;
+  std::string delim = ",";
+  std::chrono::high_resolution_clock::time_point search_t_stamp, rrt_stamp;
 };
 
 }  // namespace ewok

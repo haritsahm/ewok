@@ -26,6 +26,12 @@
 #include <chrono>
 #include <map>
 #include <thread>
+#include <boost/thread.hpp>
+#include <chrono>
+#include <ctime>   // localtime
+#include <sstream> // stringstream
+#include <iomanip> // put_time
+#include <string>  // string
 
 #include <cv_bridge/cv_bridge.h>
 #include <mav_msgs/conversions.h>
@@ -75,6 +81,7 @@ ros::Publisher rrt_property_pub, rrt_tree_pub, rrt_solution_pub, occ_marker_pub,
     command_pt_pub, command_pt_viz_pub;
 tf::TransformListener* listener;
 ros::Publisher traj_marker_pub, traj_checker_pub;
+boost::mutex mutex;
 void depthImageCallback(const sensor_msgs::Image::ConstPtr& msg)
 {
   //    ROS_INFO("recieved depth image");
@@ -175,8 +182,9 @@ void depthImageCallback(const sensor_msgs::Image::ConstPtr& msg)
     }
   }
 
+  mutex.lock();
   edrb->insertPointCloud(cloud1, origin);
-
+  mutex.unlock();
   visualization_msgs::Marker m_occ, m_free;
   m_occ.lifetime = ros::Duration(0);
   edrb->getMarkerOccupied(m_occ);
@@ -270,9 +278,13 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ros::NodeHandle pnh("~");
 
-  std::string path = ros::package::getPath("ewok_simulation") + "/benchmarking/";
-
-  ROS_INFO_STREAM("path: " << path);
+  std::string path = ros::package::getPath("ewok_simulation") + "/logs/";
+  auto now = std::chrono::system_clock::now();
+  auto in_time_t = std::chrono::system_clock::to_time_t(now);
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&in_time_t), "log-%Y-%m-%d-%X");
+  std::string file_name = ss.str();
+  ROS_INFO_STREAM("Writing log file " << path+file_name);
 
   listener = new tf::TransformListener;
 
@@ -358,9 +370,12 @@ int main(int argc, char** argv)
   edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW, int16_t, double>(resolution, 1.0));
   // ewok::UniformBSpline3D<6, double> spline_(dt);
 
-  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.15, 0.6, 3, dt));
+  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.15, 0.6, 5, dt));
   path_planner->setDistanceBuffer(edrb);
   path_planner->setPolynomialTrajectory(traj);
+  path_planner->setLogPath(path+file_name, true); //save log
+  // RRT Log Format : time_stamp, int rrt_counter, int iteration, Vector3 starting, Vector3 target, bool real_target, double free_space, int node_size, double best_cost
+  // Ellips Log Format : time_stamp, int rrt_counter, Vector3 starting, Vector3 target, int node_size, double c_best, double c_min, r1(cmax/2), r_2
 
   for (int i = 0; i < num_opt_points; i++)
   {
@@ -425,61 +440,6 @@ int main(int argc, char** argv)
   ros::Timer timer2 = nh.createTimer(ros::Duration(dt), RRTProcess);
 
   ros::spin();
-
-//  while (ros::ok())
-//  {
-//    r.sleep();
-//    tf::StampedTransform transform;
-
-//    // process rrt
-//    ROS_INFO_COND(main_debug, "Process Trajectory - RRT");
-//    path_planner->process2();
-
-//    // get trajectory checker
-//    ROS_INFO_COND(main_debug, "Publish Trajectory Checker");
-//    path_planner->TrajectoryChecker(trajectory_checker);
-//    traj_checker_pub.publish(trajectory_checker);
-
-//    // Publish Path Visualizer
-////    {
-////      if (path_planner->RRTVisualize())
-////      {
-////        ROS_INFO_COND(main_debug, "Publish RRT Visualizer");
-////        visualization_msgs::MarkerArray rrt_marker;
-////        rrt_marker.markers.resize(2);
-////        path_planner->getSolutionMarker(rrt_marker.markers[0], "rrt_trajectory_markers", 0);
-////        path_planner->getTreeMarker(rrt_marker.markers[1], "rrt_trajectory_markers", 1);
-////        if (rrt_marker.markers[0].points.size() > 0)
-////          rrt_planner_pub.publish(rrt_marker);
-
-////        path_planner->clearRRT();
-////      }
-////    }
-
-//    // Publish Command Point
-//    if ((ros::Time::now() - starting).toSec() > ros::Duration(5).toSec())
-//    {
-//      ROS_INFO_COND(main_debug, "Publish Path Visualizer");
-//      visualization_msgs::MarkerArray sol_traj_marker;
-//      path_planner->getTrajectoryMarkers(sol_traj_marker, "spline_opitimization_markers", Eigen::Vector3d(0, 1, 0),
-//                                          Eigen::Vector3d(0, 1, 1), true);
-//      current_traj_pub.publish(sol_traj_marker);
-
-//      Eigen::Vector3d pc;
-//      if(path_planner->getNextPt(pc))
-//      {
-//        ROS_INFO_COND(main_debug, "Publish Command");
-
-//        geometry_msgs::Point pp;
-//        pp.x = pc.x();
-//        pp.y = pc.y();
-//        pp.z = pc.z();
-//        trajectory_pub.publish(pp);
-//      }
-//    }
-
-//    ros::spinOnce();
-//  }
 
   ROS_INFO_STREAM("Finished ");
 
