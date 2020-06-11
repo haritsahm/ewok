@@ -22,6 +22,8 @@
 #include <random>
 #include <vector>
 #include <fstream>
+#include <iostream>
+#include <iomanip>
 #include <std_msgs/ColorRGBA.h>
 
 namespace ewok
@@ -67,6 +69,7 @@ public:
     , flag_sol_found(false)
     , flag_rrt_running(false)
     , algorithm_(false)
+    , flag_save_log_(false)
     , rng{std::random_device{}()}
   {
 
@@ -154,8 +157,8 @@ public:
   {
     log_path_ = path;
     flag_save_log_ = save_log;
-    rrt_writer.open(log_path_+std::string("-rrt.csv"), std::ios::out | std::ios::app);
-    ellipsoid_writer.open(log_path_+std::string("-ellips.csv"), std::ios::out | std::ios::app);
+    rrt_writer.open(log_path_+std::string("-rrt.csv"), std::ios::app);
+    ellipsoid_writer.open(log_path_+std::string("-ellips.csv"), std::ios::app);
 
   }
 
@@ -506,7 +509,8 @@ public:
       pos = C_rotation * L * x_ball + x_center;
 
       if(flag_save_log_)
-//        ellipsoid_writer<<rrt_stamp<<delim<<rrt_counter<<delim<<start_.transpose()<<delim<<target_.transpose()<<delim<<flag_real_target<<delim<<c_max<<delim<<c_min<<delim<<r_2<<"\n";
+          if(ellipsoid_writer.is_open())
+              ellipsoid_writer<<std::fixed<<std::setprecision(8)<<rrt_counter<<delim<<loop_counter<<delim<<toString(start_)<<delim<<toString(target_)<<delim<<flag_real_target<<delim<<c_max<<delim<<c_min<<delim<<r_2<<"\n";
 
 
 
@@ -897,12 +901,13 @@ public:
     flag_rrt_finished = false;
     Node* final = NULL;
     solution_node = new Node;
-    int iteration = 0;
+    loop_counter = 0;
     _Scalar search_radius;
     bool found = false;
     flag_sol_found = false;
     path_point_.clear();
     _Scalar free_space;
+    _Scalar curr_cost;
 
     time_stamped = true;
     search_t_stamp = std::chrono::high_resolution_clock::now();
@@ -914,11 +919,7 @@ public:
     while (Vector3(sub_root->pos_ - goal_node->pos_).norm() > 2*step_size_ ||
            ( Vector3(robot_pose_.translation() - goal_node->pos_).norm() > 2*step_size_))
     {
-        if(flag_save_log_)
-        {
-//            rrt_stamp = std::chrono::high_resolution_clock::now();
-//            rrt_writer<<rrt_stamp<<delim<<rrt_counter<<delim<<iteration<<delim<<start_.transpose()<<delim<<target_.transpose()<<delim<<flag_real_target<<delim<<free_space<<delim<<search_radius<<delim<<nodes_.size()<<delim<<best_cost_<<"\n";
-        }
+        curr_cost = -1;
 
       auto it_sol=find(solution_queue.begin(),solution_queue.end(),sub_root);
       int sol_pos = it_sol - solution_queue.begin();
@@ -1069,12 +1070,12 @@ public:
           std::vector<Node*> temp_solution;
           Node* possible_solution = new Node;
           possible_solution= findSolutionNode();
-          final = possible_solution;
 
           // if empty, add new solution to path
           if(solution_queue.empty())
           {
             solution_node = possible_solution;
+            curr_cost = possible_solution->cost_;
             //            last_solution = possible_solution;
             final = possible_solution;
             std::cout << "Clearing memory" << std::endl;
@@ -1094,6 +1095,8 @@ public:
           else
           {
             std::cout << "Checking" << std::endl;
+            final = possible_solution;
+
             // check and combine path with original solution
             while (final != NULL)
             {
@@ -1121,7 +1124,8 @@ public:
                 solution_queue.erase(solution_queue.begin(), solution_queue.end());
                 solution_queue.clear();
                 solution_queue = temp_solution;
-                final = sub_root;
+                curr_cost = possible_solution->cost_;
+                final = possible_solution;
                 while (final != NULL)
                 {
                   Vector3 pos = final->pos_;
@@ -1156,6 +1160,7 @@ public:
                     std::cout << "Cleared solution queue" << std::endl;
                     solution_queue = temp_solution;
                     final = possible_solution;
+                    curr_cost = possible_solution->cost_;
                     //                sub_root = close_node;
                     while (final != NULL)
                     {
@@ -1185,6 +1190,7 @@ public:
           std::cout << "Find Temporary Solution" << std::endl;
           temp_solution = new Node;
           temp_solution = findSolutionNode();
+          curr_cost = temp_solution->cost_;
 
           if (std::find(x_sol_.begin(), x_sol_.end(), temp_solution) == x_sol_.end())
           {
@@ -1196,11 +1202,39 @@ public:
         }
 
         flag_vizualize_output = true;
-//        search_t_stamp = std::chrono::high_resolution_clock::now();
-
       }
 
-      iteration++;
+      mutex.lock();
+      if(flag_save_log_)
+      {
+          ROS_INFO("Writing Log");
+          _Scalar elapsed_time_mics = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - search_t_stamp).count();
+
+          Vector3 temp_goal = target_;
+          Vector3 temp_start = start_;
+
+//          rrt_writer.open(log_path_+std::string("-rrt.csv"), std::ios::app);
+          if(rrt_writer.is_open())
+          {
+              rrt_writer<<std::fixed<<std::setprecision(8)<<elapsed_time_mics<<","
+                       <<rrt_counter<<","
+                      <<loop_counter<<","
+                     <<toString(temp_start)<<","
+                    <<toString(temp_goal)<<","
+                   <<flag_real_target<<","
+                  <<free_space<<","
+                 <<search_radius<<","
+                <<nodes_.size()<<","
+               <<best_cost_<<","
+              <<curr_cost << "\n";
+
+          }
+//          rrt_writer.close();
+
+      }
+      mutex.unlock();
+
+      loop_counter++;
 
     }
     std::cout << "RRT FINISHED" << std::endl;
@@ -1258,6 +1292,13 @@ public:
         }
       }
     }
+  }
+
+  std::string toString(const Vector3& vec)
+  {
+      std::stringstream ss;
+      ss <<"[" << vec.x() << '|' << vec.y() << '|' << vec.z() <<"]";
+      return ss.str();
   }
 
 
@@ -1506,6 +1547,7 @@ protected:
   std::fstream rrt_writer, ellipsoid_writer;
   bool flag_save_log_;
   int rrt_counter;
+  int loop_counter;
   bool time_stamped;
   std::string delim = ",";
   std::chrono::high_resolution_clock::time_point search_t_stamp, rrt_stamp;

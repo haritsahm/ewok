@@ -213,7 +213,7 @@ void RRTPublisher(const ros::TimerEvent& event)
     path_planner->getTreeMarker(rrt_tree_marker, "rrt_tree_marker", 1);
     if(path_planner->RRTVisualize())
     {
-      path_planner->getSolutionMarker(rrt_solution_marker, "rrt_solution_markers", 0, Eigen::Vector3f(0,0,1));
+      path_planner->getSolutionMarker(rrt_solution_marker, "rrt_solution_markers", 0, Eigen::Vector3f(0,0,1), 0.05);
       if(rrt_solution_marker.points.size() > 0)
         rrt_solution_pub.publish(rrt_solution_marker);
     }
