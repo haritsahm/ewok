@@ -373,7 +373,7 @@ int main(int argc, char** argv)
   path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.15, 0.6, 5, dt));
   path_planner->setDistanceBuffer(edrb);
   path_planner->setPolynomialTrajectory(traj);
-  path_planner->setLogPath(path+file_name, true); //save log
+  path_planner->setLogPath(path+file_name, false); //save log
   // RRT Log Format : time_stamp, int rrt_counter, int iteration, Vector3 starting, Vector3 target, bool real_target, double free_space, int node_size, double best_cost
   // Ellips Log Format : time_stamp, int rrt_counter, Vector3 starting, Vector3 target, int node_size, double c_best, double c_min, r1(cmax/2), r_2
 
@@ -382,7 +382,7 @@ int main(int argc, char** argv)
     path_planner->addControlPoint(Eigen::Vector3d(start_x, start_y, start_z));
   }
 
-  path_planner->setHeight(Eigen::Vector3d(start_x, start_y, start_z));
+  path_planner->setHeight(Eigen::Vector3d(start_x, start_y, start_z), false);
 
   /**
    *
