@@ -1,0 +1,23 @@
+<launch>
+
+<arg name="flat_height" default="true"/>
+<arg name="step_size" default="0.25"/>
+<arg name="save_log" default="false"/>
+<arg name="num_iter" default="1000"/>
+
+
+<node name="rrt_optimization_single" pkg="ewok_optimization" type="rrt_optimization_single" output="screen">
+    <param name="flat_height" value="$(arg flat_height)" />
+    <param name="step_size" value="$(arg step_size)" />
+    <param name="save_log" value="$(arg save_log)" />
+    <param name="num_iter" value="$(arg num_iter)" />
+
+</node>
+
+<group if="$(arg save_log)">
+ <node pkg="rosbag" type="record" name="rosbag_record_standard_data" respawn="true" output="screen"
+args="  -o $(find ewok_optimization)/bags/
+        /ring_buffer/occupied -e '/trajectory/(.*)' "/>
+        </group>
+
+</launch>

@@ -44,6 +44,7 @@
   <buildtool_depend>catkin_simple</buildtool_depend>
 
   <build_depend>roscpp</build_depend>
+  <build_depend>roslib</build_depend>
   <build_depend>ewok_poly_spline</build_depend>
   <build_depend>ewok_ring_buffer</build_depend>
   <build_depend>local_planner</build_depend>

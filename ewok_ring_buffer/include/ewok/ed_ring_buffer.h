@@ -86,7 +86,7 @@ class EuclideanDistanceRingBuffer {
 
   inline bool isNearObstacle(const Vector3 & point, const _Scalar & radius_)
   {
-    return occupancy_buffer_.isPointNear(point, radius_);
+    return occupancy_buffer_.isPointNear(point, radius_+resolution_);
   }
 
   inline std::vector<bool> isNearObstacle(const std::vector<Vector3> & points, const _Scalar & radius_)
@@ -94,7 +94,7 @@ class EuclideanDistanceRingBuffer {
       std::vector<bool> sol;
       for(Vector3 pt:points)
       {
-          sol.push_back(occupancy_buffer_.isPointNear(pt, radius_));
+          sol.push_back(occupancy_buffer_.isPointNear(pt, radius_+resolution_));
       }
       return sol;
   }
@@ -104,7 +104,7 @@ class EuclideanDistanceRingBuffer {
       std::vector<PointBool> sol;
       for(Vector3 pt:points)
       {
-          sol.push_back(std::make_pair(pt, occupancy_buffer_.isPointNear(pt, radius_)));
+          sol.push_back(std::make_pair(pt, occupancy_buffer_.isPointNear(pt, radius_+resolution_)));
       }
       return sol;
   }

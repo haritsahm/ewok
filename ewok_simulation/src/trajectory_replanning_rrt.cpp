@@ -56,11 +56,10 @@
 #include <visualization_msgs/MarkerArray.h>
 
 #include <ewok/polynomial_3d_optimization.h>
+#include <ewok/polynomial_trajectory_3d.h>
 #include <ewok/rrtstar3d.h>
 #include <ewok/uniform_bspline_3d.h>
 #include <ewok/uniform_bspline_3d_optimization.h>
-
-#define bool2int (x ? 1 : 0)
 
 const int POW = 6;
 
@@ -82,6 +81,7 @@ ros::Publisher rrt_property_pub, rrt_tree_pub, rrt_solution_pub, occ_marker_pub,
 tf::TransformListener* listener;
 ros::Publisher traj_marker_pub, traj_checker_pub;
 boost::mutex mutex;
+
 void depthImageCallback(const sensor_msgs::Image::ConstPtr& msg)
 {
   //    ROS_INFO("recieved depth image");

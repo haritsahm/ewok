@@ -202,23 +202,14 @@ class RingBufferBase {
 
                   Vector3 diff = p_point-res;
 
-
-                  if(std::fabs(diff.z()) < 0.5)
+                  if(diff.norm() < rad)
                   {
-                      //                      std::cout << "POINT: \n" << point << std::endl;
-                      //                      std::cout << "BOX: \n" << res << std::endl;
-
                       _Datatype &data = this->at(coord);
 
                       if (func(data))
                       {
-                          //                          diff.z() = 0;
-                          if (diff.norm() < rad /*&& std::fabs(diff.z()) < (rad/2.0)*/)
-                          {
-                              //                              std::cout << "Near" << res << std::endl;
                               found=true;
                               break;
-                          }
                       }
                   }
               }
