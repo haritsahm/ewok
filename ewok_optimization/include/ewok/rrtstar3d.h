@@ -450,19 +450,15 @@ public:
         edrb_->getVolumeMinMax(point_min, point_max);
         center_idx = edrb_->getVolumeCenter();
 
-//        do
-//        {
-            if (flat_height)
-                rand_point = Vector3(getRandomNumber(point_min.x(), point_max.x()),
-                                     getRandomNumber(point_min.y(), point_max.y()), height_.z());
-            else
-            {
-                rand_point = Vector3(getRandomNumber(point_min.x(), point_max.x()),
-                                     getRandomNumber(point_min.y(), point_max.y()), getRandomNumber(0, point_max.z()));
-            }
-//            edrb_->getIdxBuffer(rand_point, point_idx);
+        if (flat_height)
+            rand_point = Vector3(getRandomNumber(point_min.x(), point_max.x()),
+                                 getRandomNumber(point_min.y(), point_max.y()), height_.z());
+        else
+        {
+            rand_point = Vector3(getRandomNumber(point_min.x(), point_max.x()),
+                                 getRandomNumber(point_min.y(), point_max.y()), getRandomNumber(0, point_max.z()));
+        }
 
-//        } while (edrb_->isOccupied(point_idx));
 
         return rand_point;
     }
@@ -484,14 +480,9 @@ public:
             _Scalar r_2 = sqrt(pow(c_max, 2) - pow(c_min, 2)) / 2;
             Eigen::DiagonalMatrix<_Scalar, 3> L((c_max / 2), r_2, r_2);
 
-//            do
-//            {
-                Vector3 x_ball = BallSampling();
-                pos = C_rotation * L * x_ball + x_center;
 
-//                edrb_->getIdxBuffer(pos, point_idx);
-
-//            } while (edrb_->isOccupied(point_idx));
+            Vector3 x_ball = BallSampling();
+            pos = C_rotation * L * x_ball + x_center;
 
             if(flag_save_log_)
                 if(ellipsoid_writer.is_open())
@@ -879,146 +870,146 @@ public:
             std::vector<Vector3> traj_pts = trajectory_->evaluates(current_t, dt_, 4, 0);
             end_segment_point = trajectory_->evaluateEndSegment(current_t, 0);
 
-//            if (edrb_->insideVolume(traj_pts))
-//            {
-                std::vector<PointBool> traj_pts_bool = edrb_->isNearObstacle2(traj_pts, radius_);
+            //            if (edrb_->insideVolume(traj_pts))
+            //            {
+            std::vector<PointBool> traj_pts_bool = edrb_->isNearObstacle2(traj_pts, radius_);
 
-                if ((!flag_stop_found && flag_rrt_started))  // End point search
+            if ((!flag_stop_found && flag_rrt_started))  // End point search
+            {
+                ROS_WARN_COND_NAMED(algorithm_, "Process", "End Point Search");
+
+                for (int i = 0; i < traj_pts_bool.size() - 1; i++)
                 {
-                    ROS_WARN_COND_NAMED(algorithm_, "Process", "End Point Search");
+                    PointBool prev_pt = traj_pts_bool[i];
+                    PointBool next_pt = traj_pts_bool[i + 1];
 
-                    for (int i = 0; i < traj_pts_bool.size() - 1; i++)
-                    {
-                        PointBool prev_pt = traj_pts_bool[i];
-                        PointBool next_pt = traj_pts_bool[i + 1];
-
-                        /*
+                    /*
              * To prevent multiple points inside path_checker
              */
-                        if (std::find(path_checker.begin(), path_checker.end(), prev_pt) == path_checker.end())
-                        {
-                            path_checker.push_back(prev_pt);
-                        }
-
-                        if (std::find(path_checker.begin(), path_checker.end(), next_pt) == path_checker.end())
-                        {
-                            path_checker.push_back(next_pt);
-                        }
-
-                        // If multiple point is blocked, insert them to the list
-                        if (prev_pt.second && next_pt.second)
-                        {
-                            if (std::find(obs_list.begin(), obs_list.end(), prev_pt.first) == obs_list.end())
-                                obs_list.push_back(prev_pt.first);
-                            if (std::find(obs_list.begin(), obs_list.end(), next_pt.first) == obs_list.end())
-                                obs_list.push_back(next_pt.first);
-                        }
-
-                        // else if the second point is free, set as real target point
-                        else if (prev_pt.second && !next_pt.second)
-                        {
-                            // less than counter
-                            if (obs_list.size() < 3)
-                            {
-                                ROS_WARN_COND_NAMED(algorithm_, "Process", "Less Counter - Skipping");
-                                flag_not_enough = true;
-
-                                obs_list.clear();
-                                break;
-                            }
-
-                            // normal
-                            else
-                            {
-                                ROS_WARN_COND_NAMED(algorithm_, "Process", "Found Normal Endpoint");
-                                solving_queue.push_back(std::make_pair(curr_start_pt, next_pt.first));
-                                ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
-                                                           "Starting:" << curr_start_pt.transpose()
-                                                           << " Endpoint: " << next_pt.first.transpose());
-                                target_ = next_pt.first;
-                                setTargetPoint(next_pt.first);
-
-                                obstacle_counter = 0;
-                                flag_real_target = true;
-                                flag_stop_found = true;
-                                flag_not_enough = false;
-                                reset_dt_ = current_t + dt_ * (i-1);
-                                break;
-                            }
-                        }
+                    if (std::find(path_checker.begin(), path_checker.end(), prev_pt) == path_checker.end())
+                    {
+                        path_checker.push_back(prev_pt);
                     }
-                }
 
-                else if (!flag_rrt_started && !flag_stop_found)  // found starting point
-                {
-                    ROS_WARN_COND_NAMED(algorithm_, "Process", "Start Point Search");
-
-                    for (int i = 0; i < traj_pts_bool.size() - 1; i++)  // Start point search
+                    if (std::find(path_checker.begin(), path_checker.end(), next_pt) == path_checker.end())
                     {
-                        PointBool prev_pt = traj_pts_bool[i];
-                        PointBool next_pt = traj_pts_bool[i + 1];
+                        path_checker.push_back(next_pt);
+                    }
 
-                        /*
-             * If free, insert prev_pt to traj_point and spline
-             */
-                        if (!prev_pt.second)
-                        {
-                            if (std::find(traj_points.begin(), traj_points.end(), prev_pt.first) == traj_points.end())
-                            {
-                                traj_points.push_back(prev_pt.first);
-                                spline_.push_back(prev_pt.first);
-                            }
-                        }
-
-                        /*
-             * To prevent multiple points inside path_checker
-             */
-                        if (std::find(path_checker.begin(), path_checker.end(), prev_pt) == path_checker.end())
-                        {
-                            path_checker.push_back(prev_pt);
-                        }
-
-                        if (std::find(path_checker.begin(), path_checker.end(), next_pt) == path_checker.end())
-                        {
-                            path_checker.push_back(next_pt);
-                        }
-
-                        /*
-             * If the next_pt is not free, set as rrt starting point
-             * and use the end of the segment point as target
-             */
-                        if (!prev_pt.second && next_pt.second)
-                        {
-
-                            start_ = prev_pt.first;
-                            target_ = end_segment_point;
-
-                            initialize();
-                            setTargetPoint(end_segment_point);
-
-                            ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces RRT 2",
-                                                       "Proces RRT 2 Starting:" << start_.transpose() << " Endpoint: " << target_.transpose());
-
-                            rrt_counter++;
-                            tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT_TEST, this));
-                            for(int i=0; i < 5; i++)
-                            {
-                                traj_points.push_back(start_);
-                                spline_.push_back(start_);
-                            }
-                            curr_start_pt = prev_pt.first;
+                    // If multiple point is blocked, insert them to the list
+                    if (prev_pt.second && next_pt.second)
+                    {
+                        if (std::find(obs_list.begin(), obs_list.end(), prev_pt.first) == obs_list.end())
+                            obs_list.push_back(prev_pt.first);
+                        if (std::find(obs_list.begin(), obs_list.end(), next_pt.first) == obs_list.end())
                             obs_list.push_back(next_pt.first);
-                            obstacle_counter = 1;
-                            flag_start_found = true;
-                            flag_real_target = false;
+                    }
+
+                    // else if the second point is free, set as real target point
+                    else if (prev_pt.second && !next_pt.second)
+                    {
+                        // less than counter
+                        if (obs_list.size() < 3)
+                        {
+                            ROS_WARN_COND_NAMED(algorithm_, "Process", "Less Counter - Skipping");
+                            flag_not_enough = true;
+
+                            obs_list.clear();
+                            break;
+                        }
+
+                        // normal
+                        else
+                        {
+                            ROS_WARN_COND_NAMED(algorithm_, "Process", "Found Normal Endpoint");
+                            solving_queue.push_back(std::make_pair(curr_start_pt, next_pt.first));
+                            ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces",
+                                                       "Starting:" << curr_start_pt.transpose()
+                                                       << " Endpoint: " << next_pt.first.transpose());
+                            target_ = next_pt.first;
+                            setTargetPoint(next_pt.first);
+
+                            obstacle_counter = 0;
+                            flag_real_target = true;
+                            flag_stop_found = true;
+                            flag_not_enough = false;
+                            reset_dt_ = current_t + dt_ * (i-1);
                             break;
                         }
                     }
                 }
+            }
 
-                if (!flag_rrt_running || (flag_rrt_running && !flag_stop_found))
-                    current_t += dt_;
-//            }
+            else if (!flag_rrt_started && !flag_stop_found)  // found starting point
+            {
+                ROS_WARN_COND_NAMED(algorithm_, "Process", "Start Point Search");
+
+                for (int i = 0; i < traj_pts_bool.size() - 1; i++)  // Start point search
+                {
+                    PointBool prev_pt = traj_pts_bool[i];
+                    PointBool next_pt = traj_pts_bool[i + 1];
+
+                    /*
+             * If free, insert prev_pt to traj_point and spline
+             */
+                    if (!prev_pt.second)
+                    {
+                        if (std::find(traj_points.begin(), traj_points.end(), prev_pt.first) == traj_points.end())
+                        {
+                            traj_points.push_back(prev_pt.first);
+                            spline_.push_back(prev_pt.first);
+                        }
+                    }
+
+                    /*
+             * To prevent multiple points inside path_checker
+             */
+                    if (std::find(path_checker.begin(), path_checker.end(), prev_pt) == path_checker.end())
+                    {
+                        path_checker.push_back(prev_pt);
+                    }
+
+                    if (std::find(path_checker.begin(), path_checker.end(), next_pt) == path_checker.end())
+                    {
+                        path_checker.push_back(next_pt);
+                    }
+
+                    /*
+             * If the next_pt is not free, set as rrt starting point
+             * and use the end of the segment point as target
+             */
+                    if (!prev_pt.second && next_pt.second)
+                    {
+
+                        start_ = prev_pt.first;
+                        target_ = end_segment_point;
+
+                        initialize();
+                        setTargetPoint(end_segment_point);
+
+                        ROS_WARN_STREAM_COND_NAMED(algorithm_, "Proces RRT 2",
+                                                   "Proces RRT 2 Starting:" << start_.transpose() << " Endpoint: " << target_.transpose());
+
+                        rrt_counter++;
+                        tra_gene_thread_ = new boost::thread(boost::bind(&RRTStar3D::solveRRT_TEST, this));
+                        for(int i=0; i < 5; i++)
+                        {
+                            traj_points.push_back(start_);
+                            spline_.push_back(start_);
+                        }
+                        curr_start_pt = prev_pt.first;
+                        obs_list.push_back(next_pt.first);
+                        obstacle_counter = 1;
+                        flag_start_found = true;
+                        flag_real_target = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!flag_rrt_running || (flag_rrt_running && !flag_stop_found))
+                current_t += dt_;
+            //            }
 
         }
     }
@@ -1098,21 +1089,21 @@ public:
                     ROS_INFO_COND_NAMED(debugging_, "RRT PLANNER", "Rewire Tree");
                     for (Node* x_near : near_nodes)
                     {
-                            _Scalar min_cost = getCost(new_node) + getDistCost(new_node, x_near);
-                            bool isCollisionn = !isCollision(new_node->pos_, x_near->pos_);
-                            if (isCollisionn && (min_cost < x_near->cost_ ))
-                            {
-                                Node* n_parent = new Node;
-                                n_parent = x_near->parent_;
-                                n_parent->children_.erase(std::remove(n_parent->children_.begin(), n_parent->children_.end(), x_near),
-                                                          n_parent->children_.end());
-                                edges_.erase(std::remove(edges_.begin(), edges_.end(), std::make_tuple(n_parent->pos_, x_near->pos_, false)),
-                                             edges_.end());
-                                x_near->cost_ = min_cost;
-                                x_near->parent_ = new_node;
-                                new_node->children_.push_back(x_near);
-                                edges_.push_back(std::make_tuple(new_node->pos_, x_near->pos_, false));
-                            }
+                        _Scalar min_cost = getCost(new_node) + getDistCost(new_node, x_near);
+                        bool isCollisionn = !isCollision(new_node->pos_, x_near->pos_);
+                        if (isCollisionn && (min_cost < x_near->cost_ ))
+                        {
+                            Node* n_parent = new Node;
+                            n_parent = x_near->parent_;
+                            n_parent->children_.erase(std::remove(n_parent->children_.begin(), n_parent->children_.end(), x_near),
+                                                      n_parent->children_.end());
+                            edges_.erase(std::remove(edges_.begin(), edges_.end(), std::make_tuple(n_parent->pos_, x_near->pos_, false)),
+                                         edges_.end());
+                            x_near->cost_ = min_cost;
+                            x_near->parent_ = new_node;
+                            new_node->children_.push_back(x_near);
+                            edges_.push_back(std::make_tuple(new_node->pos_, x_near->pos_, false));
+                        }
                     }
                 }
             }
@@ -1159,7 +1150,7 @@ public:
 
                     }
                     else
-                    {                        
+                    {
                         final = possible_solution;
                         while (final != NULL)
                         {
@@ -1191,7 +1182,7 @@ public:
 
             if(flag_save_log_)
             {
-//                ROS_INFO("Writing Log");
+                //                ROS_INFO("Writing Log");
                 _Scalar elapsed_time_mics = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - search_t_stamp).count();
 
                 Vector3 temp_goal = target_;
@@ -1404,7 +1395,7 @@ public:
                                          edges_.end());
 
                             x_near->cost_ = min_cost
-                            x_near->parent_ = new_node;
+                                    x_near->parent_ = new_node;
                             new_node->children_.push_back(x_near);
                             edges_.push_back(std::make_tuple(new_node->pos_, x_near->pos_, false));
                         }
@@ -1556,7 +1547,7 @@ public:
             mutex.lock();
             if(flag_save_log_)
             {
-//                ROS_INFO("Writing Log");
+                //                ROS_INFO("Writing Log");
                 _Scalar elapsed_time_mics = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - search_t_stamp).count();
 
                 Vector3 temp_goal = target_;
