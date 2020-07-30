@@ -64,12 +64,9 @@
 const int POW = 6;
 
 double dt;
-int num_opt_points;
 
 bool initialized = false;
 bool main_debug = false;
-
-std::ofstream f_time, opt_time;
 
 ewok::PolynomialTrajectory3D<10, double>::Ptr traj;
 ewok::EuclideanDistanceRingBuffer<POW, int16_t, double>::Ptr edrb;
@@ -331,14 +328,21 @@ int main(int argc, char** argv)
   pnh.param("stop_z", stop_z, 0.0);
   pnh.param("stop_yaw", stop_yaw, 0.0);
 
+  double resolution, step_size, max_solve_t;
+  bool save_log, flat_height;
+
+  pnh.param("step_size", step_size, 0.25);
+  pnh.param("save_log", save_log, false);
+  pnh.param("resolution", resolution, 0.15);
+  pnh.param("flat_height", flat_height, true);
+  pnh.param("max_solve_t", max_solve_t, 5.0);
+
+
   pnh.param("dt", dt, 0.5);
-  pnh.param("num_opt_points", num_opt_points, 7);
 
   ROS_INFO("Started hovering example with parameters: start - %f %f %f %f, middle - %f %f %f %f, stop - %f %f %f %f",
            start_x, start_y, start_z, start_yaw, middle_x, middle_y, middle_z, middle_yaw, stop_x, stop_y, stop_z,
            stop_yaw);
-
-  ROS_INFO("dt: %f, num_opt_points: %d", dt, num_opt_points);
 
   visualization_msgs::Marker trajectory_checker;
   trajectory_checker.lifetime = ros::Duration(0);
@@ -364,25 +368,20 @@ int main(int argc, char** argv)
     traj_marker_pub.publish(traj_marker);
   }
 
-  double resolution;
-  pnh.param("resolution", resolution, 0.15);
-
   edrb.reset(new ewok::EuclideanDistanceRingBuffer<POW, int16_t, double>(resolution, 1.0));
-  // ewok::UniformBSpline3D<6, double> spline_(dt);
 
-  path_planner.reset(new ewok::RRTStar3D<POW, double>(0.25, 1.15, 0.6, 5, dt));
+  path_planner.reset(new ewok::RRTStar3D<POW, double>(step_size, 1.15, 0.3, max_solve_t, dt));
   path_planner->setDistanceBuffer(edrb);
   path_planner->setPolynomialTrajectory(traj);
-  path_planner->setLogPath(path+file_name, false); //save log
-  // RRT Log Format : time_stamp, int rrt_counter, int iteration, Vector3 starting, Vector3 target, bool real_target, double free_space, int node_size, double best_cost
-  // Ellips Log Format : time_stamp, int rrt_counter, Vector3 starting, Vector3 target, int node_size, double c_best, double c_min, r1(cmax/2), r_2
 
-  for (int i = 0; i < num_opt_points; i++)
+  path_planner->setLogPath(path+file_name, save_log); //save log
+
+  for (int i = 0; i < 7; i++)
   {
     path_planner->addControlPoint(Eigen::Vector3d(start_x, start_y, start_z));
   }
 
-  path_planner->setHeight(Eigen::Vector3d(start_x, start_y, start_z), false);
+  path_planner->setHeight(Eigen::Vector3d(start_x, start_y, start_z), flat_height);
 
   /**
    *

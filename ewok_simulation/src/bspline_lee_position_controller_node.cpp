@@ -144,21 +144,6 @@ void BSplineLeePositionControllerNode::OdometryCallback(const nav_msgs::Odometry
     ROS_WARN("Adding last point once again!");
   }
 
-  // if(time_elapsed > b_spline_->maxValidTime()) {
-  //   b_spline_->push_back(b_spline_->getControlPoint(b_spline_->size()-1));
-  //   ROS_WARN("Adding last point once again!");
-  // }
-
-  // Eigen::Vector3d target_pos = b_spline_->evaluate(time_elapsed, 0);
-  // std::cout << "Target : " << target_pos.transpose() << std::endl;
-  // if (Eigen::Vector3d(target_pos - odometry.position).norm() < 2)
-  // {
-  //   if (time_elapsed < b_spline_->maxValidTime())
-  //   {
-  //     time_elapsed += 0.01;
-  //   }
-  // }
-
   bool yaw_from_traj;
   mav_msgs::EigenTrajectoryPoint command_trajectory;
   getTrajectoryPoint(local_t, command_trajectory, yaw_from_traj);
@@ -202,7 +187,7 @@ void BSplineLeePositionControllerNode::getTrajectoryPoint(double t,
   command_trajectory.velocity_W = b_spline_->evaluate(t, 1);
   command_trajectory.acceleration_W = b_spline_->evaluate(t, 2);
 
-  static const double eps = 0.1;
+  static const double eps = 0.2;
   static const double delta = 0.02;
 
   Eigen::Vector3d d_t = b_spline_->evaluate(t + eps, 0) - command_trajectory.position_W;
@@ -210,18 +195,21 @@ void BSplineLeePositionControllerNode::getTrajectoryPoint(double t,
 
   if(std::abs(d_t[0]) > delta || std::abs(d_t[1]) > delta) {
     double yaw = std::atan2(d_t[1], d_t[0]);
-    yaw_from_traj = true;
+    if(std::fabs(yaw) < (60*M_PI)/180)
+    {
+        yaw_from_traj = true;
 
-    command_trajectory.setFromYaw(yaw);
+        command_trajectory.setFromYaw(yaw);
 
-    Eigen::Vector3d d_t_e = b_spline_->evaluate(t + 2*eps, 0) - b_spline_->evaluate(t + eps, 0);
+        Eigen::Vector3d d_t_e = b_spline_->evaluate(t + 2*eps, 0) - b_spline_->evaluate(t + eps, 0);
 
-    if(std::abs(d_t_e[0]) > delta || std::abs(d_t_e[1]) > delta) {
-      double yaw_e = std::atan2(d_t_e[1], d_t_e[0]);
-      double yaw_rate = (yaw_e - yaw) / (2*eps);
-      command_trajectory.setFromYawRate(yaw_rate);
-    } else {
-      command_trajectory.setFromYawRate(0);
+        if(std::abs(d_t_e[0]) > delta || std::abs(d_t_e[1]) > delta) {
+            double yaw_e = std::atan2(d_t_e[1], d_t_e[0]);
+            double yaw_rate = (yaw_e - yaw) / (3*eps);
+            command_trajectory.setFromYawRate(yaw_rate);
+        } else {
+            command_trajectory.setFromYawRate(0);
+        }
     }
 
   }

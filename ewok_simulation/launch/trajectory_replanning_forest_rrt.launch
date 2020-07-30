@@ -22,7 +22,11 @@
   <arg name="stop_yaw" value="$(eval -pi/4)"/>
 
   <arg name="dt" value="0.5" />
-  <arg name="num_opt_points" value="7" />
+  <arg name="" value="7" />
+  <arg name="flat_height" default="true"/>
+  <arg name="step_size" default="0.25"/>
+  <arg name="save_log" default="false"/>
+  <arg name="max_solve_t" default="5" />
 
   <env name="GAZEBO_MODEL_PATH" value="$(find rotors_gazebo)/models"/>
   <env name="GAZEBO_RESOURCE_PATH" value="$(find forest_gen)"/>
@@ -54,7 +58,10 @@
     <node name="trajectory_replanning_rrt" pkg="ewok_simulation" type="trajectory_replanning_rrt" output="screen">
 
         <param name="dt" value="$(arg dt)" />
-        <param name="num_opt_points" value="$(arg num_opt_points)" />
+s        <param name="flat_height" value="$(arg flat_height)" />
+        <param name="step_size" value="$(arg step_size)" />
+        <param name="save_log" value="$(arg save_log)" />
+        <param name="max_solve_t" value="$(arg max_solve_t)" />
 
         <param name="start_x" value="$(arg start_x)" />
         <param name="start_y" value="$(arg start_y)" />

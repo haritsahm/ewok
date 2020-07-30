@@ -103,13 +103,13 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /firefly/optimal_trajectory
       Name: MarkerArray
       Namespaces:
-        {}
+        spline_opitimization_markers: true
       Queue Size: 100
-      Value: false
+      Value: true
     - Class: rviz/TF
       Enabled: true
       Frame Timeout: 15
@@ -272,7 +272,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 25.886348724365234
+      Distance: 6.026684761047363
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -287,10 +287,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 1.2497968673706055
       Target Frame: firefly/base_link
       Value: Orbit (rviz)
-      Yaw: 6.0376996994018555
+      Yaw: 4.1495232582092285
     Saved: ~
 Window Geometry:
   Displays:

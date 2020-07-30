@@ -192,24 +192,27 @@ class RingBufferBase {
                   Vector3i coord(x, y, z);
                   coord += offset_;
 
-                  Vector3 res;
-                  getPoint(coord, res);
+                  Vector3 center;
+                  getPoint(coord, center);
 
                   Vector3i p_idx;
                   Vector3 p_point;
                   getIdx(point, p_idx);
                   getPoint(p_idx, p_point);
 
-                  Vector3 diff = p_point-res;
+                  Vector3 diff = p_point-center;
 
-                  if(diff.norm() < rad)
+                  if(diff.z() < rad/2)
                   {
-                      _Datatype &data = this->at(coord);
-
-                      if (func(data))
+                      if(diff.dot(diff) < pow(rad,2))
                       {
+                          _Datatype &data = this->at(coord);
+
+                          if (func(data))
+                          {
                               found=true;
                               break;
+                          }
                       }
                   }
               }
