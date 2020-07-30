@@ -1193,7 +1193,7 @@ public:
             int sol_pos = it_sol - solution_queue.begin();
 
             if((Vector3(robot_pos-target_).norm() < 0.5 || (Vector3(sub_root->pos_ - goal_node->pos_).norm() < 0.5)) &&
-                 sol_pos > solution_queue.size()-2  && !isCollision(sub_root, goal_node)) break;
+                 sol_pos > solution_queue.size()-3  && !isCollision(sub_root, goal_node)) break;
 
 
             // Too Short
