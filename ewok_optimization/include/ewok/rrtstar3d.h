@@ -501,16 +501,6 @@ public:
         return rand_node;
     }
 
-    void InsertNode(const Node* min_node, const Node* new_node)
-    {
-        new_node->parent_ = min_node;
-        new_node->cost_ = min_node->cost_ + getDistCost(min_node, new_node);
-        min_node->children_.push_back(new_node);
-        edges_.push_back(std::make_tuple(min_node->pos_, new_node->pos_, false));
-        nodes_.push_back(new_node);
-        lastNode_ = new_node;
-    }
-
     Node* getNearestNode(const Node* node_)
     {
         _Scalar minDist = std::numeric_limits<_Scalar>::infinity();
@@ -1189,11 +1179,16 @@ public:
         {
             curr_cost = -1;
 
-            auto it_sol=find(solution_queue.begin(),solution_queue.end(),sub_root);
-            int sol_pos = it_sol - solution_queue.begin();
+            if(solution_queue.size() > 0)
+            {
+                auto it_sol=find(solution_queue.begin(),solution_queue.end(),sub_root);
+                int sol_pos = it_sol - solution_queue.begin();
+
+                if(sol_pos > solution_queue.size()-3) break;
+            }
 
             if((Vector3(robot_pos-target_).norm() < 0.5 || (Vector3(sub_root->pos_ - goal_node->pos_).norm() < 0.5)) &&
-                 sol_pos > solution_queue.size()-3  && !isCollision(sub_root, goal_node)) break;
+                 !isCollision(sub_root, goal_node)) break;
 
 
             // Too Short
@@ -1224,7 +1219,7 @@ public:
                     }
                 }
 
-                if(!replaced)
+                if(!replaced && solution_queue.size() > 0)
                 {
                     _Scalar min_dist = std::numeric_limits<_Scalar>::infinity();
                     Node* nearest_node = new Node;
@@ -1342,7 +1337,7 @@ public:
                     possible_solution= findSolutionNode();
 
                     // if empty, add new solution to path
-                    if(solution_queue.empty())
+                    if(solution_queue.size() == 0)
                     {
                         solution_node = possible_solution;
                         curr_cost = possible_solution->cost_;
@@ -1378,7 +1373,7 @@ public:
                         auto it_temp=find(temp_solution.begin(),temp_solution.end(), sub_root);
                         int temp_pos = it_temp - temp_solution.begin();
 
-                        if(temp_pos != 0)
+                        if(temp_pos != 0 && temp_solution.size() > 0)
                         {
                             if(it_temp != temp_solution.end())
                             {
@@ -1435,12 +1430,15 @@ public:
                         }
 
                         path_point_.clear();
-                        for(int i = 0; i < solution_queue.size();i++)
+                        if(solution_queue.size()> 0)
                         {
-                            path_point_.push_back(solution_queue[i]->pos_);
-                        }
+                            for(int i = 0; i < solution_queue.size();i++)
+                            {
+                                path_point_.push_back(solution_queue[i]->pos_);
+                            }
 
-                        path_point_.push_back(target_);
+                            path_point_.push_back(target_);
+                        }
 
                     }
 
@@ -1573,56 +1571,53 @@ public:
     void getTreeMarker(visualization_msgs::Marker& traj_marker, const std::string& ns, int id = 0,
                        const Eigen::Vector3f& color = Eigen::Vector3f(1, 1, 0), _Scalar scale = 0.01)
     {
-        if (edges_.empty())
+        if (edges_.size() > 0)
         {
-            //      ROS_WARN("Edges Empty");
-            return;
-        }
+            traj_marker.header.frame_id = "world";
+            traj_marker.ns = ns;
+            traj_marker.id = id;
+            traj_marker.type = visualization_msgs::Marker::LINE_LIST;
+            traj_marker.action = visualization_msgs::Marker::MODIFY;
+            traj_marker.scale.x = scale;
 
-        traj_marker.header.frame_id = "world";
-        traj_marker.ns = ns;
-        traj_marker.id = id;
-        traj_marker.type = visualization_msgs::Marker::LINE_LIST;
-        traj_marker.action = visualization_msgs::Marker::MODIFY;
-        traj_marker.scale.x = scale;
+            std_msgs::ColorRGBA c_free, c_obs;
 
-        std_msgs::ColorRGBA c_free, c_obs;
+            c_free.r = 0;
+            c_free.g = 1.0;
+            c_free.b = 0;
+            c_free.a = 1.0;
 
-        c_free.r = 0;
-        c_free.g = 1.0;
-        c_free.b = 0;
-        c_free.a = 1.0;
+            c_obs.r = 1.0;
+            c_obs.g = 0.5;
+            c_obs.b = 1.0;
+            c_obs.a = 1.0;
 
-        c_obs.r = 1.0;
-        c_obs.g = 0.5;
-        c_obs.b = 1.0;
-        c_obs.a = 1.0;
+            traj_marker.color = c_free;
 
-        traj_marker.color = c_free;
-
-        for (int i = 0; i < edges_.size() - 1; i++)
-        {
-            Vector3 p, q;
-            p = std::get<0>(edges_[i]);
-            q = std::get<1>(edges_[i]);
-
-            geometry_msgs::Point p_, q_;
-            p_.x = p.x();
-            p_.y = p.y();
-            p_.z = p.z();
-            q_.x = q.x();
-            q_.y = q.y();
-            q_.z = q.z();
-
-            if (std::get<2>(edges_[i]))
+            for (int i = 0; i < edges_.size() - 1; i++)
             {
-                traj_marker.points.push_back(p_);
-                traj_marker.points.push_back(q_);
-            }
-            else
-            {
-                traj_marker.points.push_back(p_);
-                traj_marker.points.push_back(q_);
+                Vector3 p, q;
+                p = std::get<0>(edges_[i]);
+                q = std::get<1>(edges_[i]);
+
+                geometry_msgs::Point p_, q_;
+                p_.x = p.x();
+                p_.y = p.y();
+                p_.z = p.z();
+                q_.x = q.x();
+                q_.y = q.y();
+                q_.z = q.z();
+
+                if (std::get<2>(edges_[i]))
+                {
+                    traj_marker.points.push_back(p_);
+                    traj_marker.points.push_back(q_);
+                }
+                else
+                {
+                    traj_marker.points.push_back(p_);
+                    traj_marker.points.push_back(q_);
+                }
             }
         }
     }
@@ -1630,36 +1625,33 @@ public:
     void getSolutionMarker(visualization_msgs::Marker& traj_marker, const std::string& ns, int id = 0,
                            const Eigen::Vector3f& color = Eigen::Vector3f(0, 1, 0), _Scalar scale = 0.01)
     {
-        if (path_point_.empty())
+        if (path_point_.size() > 0)
         {
-            //      ROS_WARN("Path Point Empty");
-            return;
+            traj_marker.header.frame_id = "world";
+            traj_marker.ns = ns;
+            traj_marker.id = id;
+            traj_marker.type = visualization_msgs::Marker::LINE_STRIP;
+            traj_marker.action = visualization_msgs::Marker::MODIFY;
+            traj_marker.scale.x = scale;
+            traj_marker.color.a = 1.0;
+
+            // cyan
+            traj_marker.color.r = color(0);
+            traj_marker.color.g = color(1);
+            traj_marker.color.b = color(2);
+
+            for (Vector3 n : path_point_)
+            {
+                geometry_msgs::Point p;
+                p.x = n.x();
+                p.y = n.y();
+                p.z = n.z();
+
+                traj_marker.points.push_back(p);
+            }
         }
-
-        traj_marker.header.frame_id = "world";
-        traj_marker.ns = ns;
-        traj_marker.id = id;
-        traj_marker.type = visualization_msgs::Marker::LINE_STRIP;
-        traj_marker.action = visualization_msgs::Marker::MODIFY;
-        traj_marker.scale.x = scale;
-        traj_marker.color.a = 1.0;
-
-        // cyan
-        traj_marker.color.r = color(0);
-        traj_marker.color.g = color(1);
-        traj_marker.color.b = color(2);
-
-        for (Vector3 n : path_point_)
-        {
-            geometry_msgs::Point p;
-            p.x = n.x();
-            p.y = n.y();
-            p.z = n.z();
-
-            traj_marker.points.push_back(p);
-        }
-
         flag_vizualize_output = false;
+
     }
 
     void getRRTProperty(visualization_msgs::Marker& traj_marker, const std::string& ns, int id = 0,

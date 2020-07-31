@@ -203,7 +203,7 @@ class RingBufferBase {
                   Vector3 diff = p_point-center;
                   _Scalar height_diff = rad/2;
                   if(height_diff < 0.3) height_diff = 0.3;
-                  if(diff.z() < height_diff)
+                  if(std::fabs(diff.z()) < height_diff)
                   {
                       if(diff.dot(diff) < pow(rad,2))
                       {
