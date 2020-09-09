@@ -1,17 +1,21 @@
-# Ewok: Real-Time Trajectory Replanning for MAVs using Uniform B-splines and 3D Circular Buffer
+# Trajectory Replanning Based on RRT* and B-Spline 
+---
+## This is part of my undergraduate capstone project.
+See the original work here:
 
-For more information see
-[https://vision.in.tum.de/research/robotvision/replanning](https://vision.in.tum.de/research/robotvision/replanning)
+[Ewok: Real-Time Trajectory Replanning for MAVs using Uniform B-splines and 3D Circular Buffer](https://github.com/VladyslavUsenko/ewok)
+---
 
-[![teaser](ewok.gif)](https://www.youtube.com/watch?v=jh6tMHjxHSY)
+[![Youtube Video](https://img.youtube.com/vi/qD0lT9ndMEY/0.jpg =720x)](https://www.youtube.com/watch?v=qD0lT9ndMEY)
 
 ### 1. Related Papers
-If you use this code, please cite the respective publications:
 * **Real-Time Trajectory Replanning for MAVs using Uniform B-splines and 3D Circular Buffer**, V. Usenko, L. von Stumberg, A. Pangercic, D. Cremers, In 2017 International Conference on Intelligent Robots and Systems (IROS) [[DOI:10.1109/IROS.2017.8202160]](https://doi.org/10.1109/IROS.2017.8202160) [[arXiv:1703.01416]](https://arxiv.org/abs/1703.01416).
+* **Sampling-based Algorithms for Optimal Motion Planning**, Sertac Karaman and Emilio Frazzoli [[arXiv:1105.1186]](https://arxiv.org/abs/1105.1186)
+* **Informed RRT\*: Optimal Sampling-based Path Planning Focused via Direct Sampling of an Admissible Ellipsoidal Heuristic**, Gammell, Jonathan D. and Srinivasa, Siddhartha S. and Barfoot, Timothy D., In 2014 IEEE/RSJ International Conference on Intelligent Robots and Systems [[DOI:10.1109/IROS.2014.6942976]](https://doi.org/10.1109/IROS.2014.6942976) [[arXiv:1404.2334]](https://arxiv.org/abs/1404.2334)
 
 ### 2 Installation
 
-The system has been tested with Ubuntu 18.04 (ROS Melodic). For Ubuntu 16.04 (ROS Kinetic) switch to `ubuntu_16_04_kinetic` branch.
+The system has been tested with Ubuntu 18.04 (ROS Melodic).
 
 Follow the tutorials to [install ROS Melodic](http://wiki.ros.org/ROS/Installation) and to [set up catkin workspace](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment).
 
@@ -44,11 +48,17 @@ roscore
 Start visualization:
 ```
 roscd ewok_simulation/rviz/
-rviz -d simulation.rviz
+rviz -d simulation_rrt.rviz
 ```
+
 Launch the system and simulator:
 ```
-roslaunch ewok_simulation trajectory_replanning_simulation.launch
+roslaunch ewok_simulation trajectory_replanning_simulation_rrt.launch 
+```
+
+by default, the step_size = 0.25 m and flat height is enabled. You can change the parameter in launch file or adding the parameter when launching:
+```
+roslaunch ewok_simulation trajectory_replanning_simulation_rrt.launch step_size:=1.25 flat_height:=False
 ```
 
 Now you should be able to see Rviz visualization of the system running in simulator. Due to performance reasons GUI of the Gazebo simulator is disabled by default.
@@ -57,53 +67,17 @@ To enable it, change the following parameter in `ewok_simulation/launch/trajecto
 <arg name="gui" default="true"/>
 ```
 
-### 4. Circular Buffer vs Octomap benchmarking
-In separate terminal windows:
+### Testing With Single Obstacle
 
-Start roscore:
-```
-roscore
-```
-or, if you already have it running, make sure you are not using simulated time:
-```
-rosparam set use_sim_time false
-```
+[![Youtube Playlist](https://img.youtube.com/vi/dZ4qSPeFCFY/0.jpg =720x)](https://www.youtube.com/playlist?list=PLXAepXpbdn-N7D-bDPp8fLf5Re6JKAj59)
 
 Start visualization:
 ```
-roscd ewok_ring_buffer/rviz/
-rviz -d ring_buffer.rviz
+roscd ewok_simulation/rviz/
+rviz -d simulation_single.rviz
 ```
-Run benchmarking script. It will download the dataset, run the computations and show the plots with insertion times:
+Launch the system:
 ```
-roscd ewok_ring_buffer/benchmarking/
-./benchmark.py
+roslaunch ewok_optimization rrt_simulation_single.launch step_size:=1.25 flat_height:=False num_iter:=1500
 ```
-
-### 5. B-spline optimization example
-In separate terminal windows:
-
-Start roscore:
-```
-roscore
-```
-or, if you already have it running, make sure you are not using simulated time:
-```
-rosparam set use_sim_time false
-```
-
-Start visualization:
-```
-roscd ewok_optimization/rviz/
-rviz -d optimization_example.rviz
-```
-Run optimization example:
-```
-rosrun ewok_optimization spline_optimization_example3
-```
-
-
-### 6. License
-Ewok was developed at the Technical University of Munich. 
-The open-source version is licensed under the GNU Lesser General Public License Version 3 (LGPLv3).
 
