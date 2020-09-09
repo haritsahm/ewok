@@ -1,19 +1,18 @@
 # Trajectory Replanning Based on RRT* and B-Spline 
 ---
-## This is part of my undergraduate capstone project.
 See the original work here:
 
 [Ewok: Real-Time Trajectory Replanning for MAVs using Uniform B-splines and 3D Circular Buffer](https://github.com/VladyslavUsenko/ewok)
 ---
-
-[![Youtube Video](https://img.youtube.com/vi/qD0lT9ndMEY/0.jpg =720x)](https://www.youtube.com/watch?v=qD0lT9ndMEY)
+## This is part of my undergraduate capstone project.
+[![Animated Gif](https://media.giphy.com/media/Z9W9MSOHUSJKm7YrMZ/giphy-downsized-large.gif)](https://www.youtube.com/watch?v=qD0lT9ndMEY)
 
 ### 1. Related Papers
 * **Real-Time Trajectory Replanning for MAVs using Uniform B-splines and 3D Circular Buffer**, V. Usenko, L. von Stumberg, A. Pangercic, D. Cremers, In 2017 International Conference on Intelligent Robots and Systems (IROS) [[DOI:10.1109/IROS.2017.8202160]](https://doi.org/10.1109/IROS.2017.8202160) [[arXiv:1703.01416]](https://arxiv.org/abs/1703.01416).
 * **Sampling-based Algorithms for Optimal Motion Planning**, Sertac Karaman and Emilio Frazzoli [[arXiv:1105.1186]](https://arxiv.org/abs/1105.1186)
 * **Informed RRT\*: Optimal Sampling-based Path Planning Focused via Direct Sampling of an Admissible Ellipsoidal Heuristic**, Gammell, Jonathan D. and Srinivasa, Siddhartha S. and Barfoot, Timothy D., In 2014 IEEE/RSJ International Conference on Intelligent Robots and Systems [[DOI:10.1109/IROS.2014.6942976]](https://doi.org/10.1109/IROS.2014.6942976) [[arXiv:1404.2334]](https://arxiv.org/abs/1404.2334)
 
-### 2 Installation
+### 2. Installation
 
 The system has been tested with Ubuntu 18.04 (ROS Melodic).
 
@@ -69,7 +68,7 @@ To enable it, change the following parameter in `ewok_simulation/launch/trajecto
 
 ### Testing With Single Obstacle
 
-[![Youtube Playlist](https://img.youtube.com/vi/dZ4qSPeFCFY/0.jpg =720x)](https://www.youtube.com/playlist?list=PLXAepXpbdn-N7D-bDPp8fLf5Re6JKAj59)
+[![](https://i.imgur.com/NNbvdIh.png)](https://www.youtube.com/playlist?list=PLXAepXpbdn-N7D-bDPp8fLf5Re6JKAj59)
 
 Start visualization:
 ```
@@ -80,4 +79,3 @@ Launch the system:
 ```
 roslaunch ewok_optimization rrt_simulation_single.launch step_size:=1.25 flat_height:=False num_iter:=1500
 ```
-
