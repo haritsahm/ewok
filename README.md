@@ -79,3 +79,7 @@ Launch the system:
 ```
 roslaunch ewok_optimization rrt_simulation_single.launch step_size:=1.25 flat_height:=False num_iter:=1500
 ```
+
+## License
+This project is licensed under the GNU Lesser General Public License Version 3 (LGPLv3). 
+Ewok is licensed under the GNU Lesser General Public License Version 3 (LGPLv3). 
